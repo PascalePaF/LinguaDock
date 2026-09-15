@@ -1,0 +1,65 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LinguaDock",
+  "version": "0.1.0",
+  "identifier": "io.github.pascalepaf.linguadock",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "LinguaDock",
+        "width": 540,
+        "height": 710,
+        "minWidth": 430,
+        "minHeight": 560,
+        "center": true,
+        "resizable": true,
+        "maximizable": false,
+        "minimizable": true,
+        "closable": true,
+        "decorations": false,
+        "transparent": true,
+        "shadow": true,
+        "alwaysOnTop": true,
+        "visible": true,
+        "skipTaskbar": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "licenseFile": "../LICENSE",
+    "publisher": "PascalePaF",
+    "category": "Productivity",
+    "shortDescription": "四语 Google 翻译桌面小窗",
+    "longDescription": "置顶或通过全局快捷键唤出的轻量翻译小窗，可在简体中文、英语、日语和繁体中文之间生成四语对照。",
+    "copyright": "Copyright © 2026 PascalePaF",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": true,
+        "languages": ["SimpChinese", "TradChinese", "English", "Japanese"]
+      }
+    }
+  }
+}

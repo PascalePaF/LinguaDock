@@ -1,0 +1,12 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+.idea/
+.vscode/
+*.log
+*.pdb
+release/
+.preview-chrome/
+Thumbs.db
+.DS_Store
