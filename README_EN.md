@@ -1,6 +1,6 @@
 # LinguaDock
 
-LinguaDock is a lightweight, always-on-top Windows translation popup for four-way comparison between **Simplified Chinese, English, Japanese, and Traditional Chinese**.
+LinguaDock is a minimal, always-on-top Windows translation popup for four-way comparison between **Simplified Chinese, English, Japanese, and Traditional Chinese**.
 
 Type in any one of the four languages. LinguaDock detects the source and shows all four versions at once. Press `Ctrl + Alt + G` from any application to bring the window forward.
 
@@ -12,10 +12,13 @@ Type in any one of the four languages. LinguaDock detects the source and shows a
 
 - Four results at once: Simplified Chinese, English, Japanese, and Traditional Chinese
 - Automatic source detection with an optional manual override
-- Debounced translation that respects CJK input-method composition
+- Common parts of speech, meanings, and short usage examples for single-word input
+- Automatic translation plus immediate `Ctrl + Enter` translation
 - Global `Ctrl + Alt + G` shortcut with a `Ctrl + Shift + G` conflict fallback
+- Frameless draggable window that adapts its dimensions to the content
+- Persistent light and dark themes
+- Click anywhere on a result card to copy the translation and its meanings
 - Always-on-top toggle, system tray, and single-instance behavior
-- One-click copy for every result
 - Installer and portable Windows builds
 - No translation history, telemetry, ads, accounts, or project-owned server
 
@@ -23,8 +26,8 @@ Type in any one of the four languages. LinguaDock detects the source and shows a
 
 Get the two Windows x64 packages from [Releases](https://github.com/PascalePaF/LinguaDock/releases/latest):
 
-- `LinguaDock_0.1.0_x64-setup.exe` — NSIS installer
-- `LinguaDock_0.1.0_windows_x64_portable.zip` — extract and run `LinguaDock.exe`
+- `LinguaDock_1.0.0_x64-setup.exe` — NSIS installer
+- `LinguaDock_1.0.0_windows_x64_portable.zip` — extract and run `LinguaDock.exe`
 
 The public build is not commercially code-signed, so Windows SmartScreen may identify it as an unknown publisher. Download only from this repository and verify the published SHA-256 checksums.
 
@@ -45,6 +48,8 @@ npm run tauri -- build
 ```
 
 The NSIS installer is created in `src-tauri/target/release/bundle/nsis/`.
+
+See [CHANGELOG.md](CHANGELOG.md) for release details.
 
 ## License
 

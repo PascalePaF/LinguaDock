@@ -5,7 +5,7 @@ use std::{sync::Mutex, time::Duration};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, State, WebviewWindow,
+    AppHandle, Emitter, LogicalSize, Manager, State, WebviewWindow,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
@@ -21,17 +21,34 @@ const SIMPLIFIED_HINTS: &str = "这个们来时为后里么与开关于长问题
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct DictionarySense {
+    part_of_speech: String,
+    meanings: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+struct GoogleTranslation {
+    text: String,
+    senses: Vec<DictionarySense>,
+    examples: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct TranslationItem {
     language: String,
     text: Option<String>,
     error: Option<String>,
     is_original: bool,
+    senses: Vec<DictionarySense>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct TranslationResponse {
     detected_language: String,
+    is_single_word: bool,
+    examples: Vec<String>,
     items: Vec<TranslationItem>,
 }
 
@@ -100,7 +117,38 @@ fn detect_supported_language(text: &str) -> Option<&'static str> {
     None
 }
 
-fn parse_translation(body: &str) -> Result<String, String> {
+fn is_single_word(text: &str, language: &str) -> bool {
+    let trimmed = text.trim();
+    let character_count = trimmed.chars().count();
+    if character_count == 0 || character_count > 32 || trimmed.chars().any(char::is_whitespace) {
+        return false;
+    }
+
+    if trimmed
+        .chars()
+        .any(|character| "，。！？；：、,.!?;:/\\()[]{}\"“”‘’".contains(character))
+    {
+        return false;
+    }
+
+    match language {
+        "en" => trimmed
+            .chars()
+            .all(|character| character.is_alphabetic() || matches!(character, '\'' | '-')),
+        "zh-CN" | "zh-TW" | "ja" => character_count <= 12,
+        _ => false,
+    }
+}
+
+fn strip_google_markup(text: &str) -> String {
+    text.replace("<b>", "")
+        .replace("</b>", "")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
+}
+
+fn parse_google_translation(body: &str) -> Result<GoogleTranslation, String> {
     if body.trim_start().starts_with('<') {
         return Err("Google 翻译暂时拒绝了请求，请稍后重试".into());
     }
@@ -119,10 +167,79 @@ fn parse_translation(body: &str) -> Result<String, String> {
         .collect::<String>();
 
     if translated.trim().is_empty() {
-        Err("Google 翻译没有返回译文".into())
-    } else {
-        Ok(translated)
+        return Err("Google 翻译没有返回译文".into());
     }
+
+    let senses = value
+        .get(1)
+        .and_then(serde_json::Value::as_array)
+        .map(|groups| {
+            groups
+                .iter()
+                .filter_map(|group| {
+                    let part_of_speech = group.get(0)?.as_str()?.trim();
+                    let raw_meanings = group.get(1)?.as_array()?;
+                    let mut meanings = Vec::new();
+
+                    for meaning in raw_meanings.iter().filter_map(serde_json::Value::as_str) {
+                        let meaning = meaning.trim();
+                        if !meaning.is_empty()
+                            && !meanings.iter().any(|existing: &String| existing == meaning)
+                        {
+                            meanings.push(meaning.to_string());
+                        }
+                        if meanings.len() == 6 {
+                            break;
+                        }
+                    }
+
+                    if part_of_speech.is_empty() || meanings.is_empty() {
+                        None
+                    } else {
+                        Some(DictionarySense {
+                            part_of_speech: part_of_speech.to_string(),
+                            meanings,
+                        })
+                    }
+                })
+                .take(5)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    let examples = value
+        .get(13)
+        .and_then(|section| section.get(0))
+        .and_then(serde_json::Value::as_array)
+        .map(|entries| {
+            let mut examples = Vec::new();
+            for example in entries
+                .iter()
+                .filter_map(|entry| entry.get(0))
+                .filter_map(serde_json::Value::as_str)
+            {
+                let example = strip_google_markup(example).trim().to_string();
+                if !example.is_empty() && !examples.contains(&example) {
+                    examples.push(example);
+                }
+                if examples.len() == 3 {
+                    break;
+                }
+            }
+            examples
+        })
+        .unwrap_or_default();
+
+    Ok(GoogleTranslation {
+        text: translated,
+        senses,
+        examples,
+    })
+}
+
+#[cfg(test)]
+fn parse_translation(body: &str) -> Result<String, String> {
+    parse_google_translation(body).map(|translation| translation.text)
 }
 
 async fn translate_one(
@@ -130,14 +247,19 @@ async fn translate_one(
     text: &str,
     source: &str,
     target: &str,
-) -> Result<String, String> {
-    let parameters = [
+    include_dictionary: bool,
+) -> Result<GoogleTranslation, String> {
+    let mut parameters = vec![
         ("client", "dict-chrome-ex"),
         ("sl", source),
         ("tl", target),
         ("dt", "t"),
         ("q", text),
     ];
+    if include_dictionary {
+        parameters.push(("dt", "bd"));
+        parameters.push(("dt", "ex"));
+    }
 
     let response = client
         .post(GOOGLE_TRANSLATE_ENDPOINT)
@@ -166,7 +288,7 @@ async fn translate_one(
         .text()
         .await
         .map_err(|_| "读取 Google 翻译结果失败".to_string())?;
-    parse_translation(&body)
+    parse_google_translation(&body)
 }
 
 #[tauri::command(rename_all = "camelCase")]
@@ -188,10 +310,11 @@ async fn translate_all(text: String, source_hint: String) -> Result<TranslationR
     } else {
         return Err("不支持的来源语言".into());
     };
+    let single_word = is_single_word(&text, &detected_language);
 
     let client = Client::builder()
         .timeout(Duration::from_secs(15))
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) LinguaDock/0.1")
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) LinguaDock/1.0")
         .build()
         .map_err(|_| "无法初始化网络连接".to_string())?;
 
@@ -202,35 +325,62 @@ async fn translate_all(text: String, source_hint: String) -> Result<TranslationR
 
         async move {
             if target == source {
-                TranslationItem {
-                    language: target.to_string(),
-                    text: Some(input),
-                    error: None,
-                    is_original: true,
-                }
-            } else {
-                match translate_one(&client, &input, &source, target).await {
-                    Ok(translated) => TranslationItem {
+                (
+                    TranslationItem {
                         language: target.to_string(),
-                        text: Some(translated),
+                        text: Some(input),
                         error: None,
-                        is_original: false,
+                        is_original: true,
+                        senses: Vec::new(),
                     },
-                    Err(error) => TranslationItem {
-                        language: target.to_string(),
-                        text: None,
-                        error: Some(error),
-                        is_original: false,
-                    },
+                    Vec::new(),
+                )
+            } else {
+                match translate_one(&client, &input, &source, target, single_word).await {
+                    Ok(translated) => (
+                        TranslationItem {
+                            language: target.to_string(),
+                            text: Some(translated.text),
+                            error: None,
+                            is_original: false,
+                            senses: translated.senses,
+                        },
+                        translated.examples,
+                    ),
+                    Err(error) => (
+                        TranslationItem {
+                            language: target.to_string(),
+                            text: None,
+                            error: Some(error),
+                            is_original: false,
+                            senses: Vec::new(),
+                        },
+                        Vec::new(),
+                    ),
                 }
             }
         }
     });
 
-    let items = join_all(jobs).await;
+    let completed = join_all(jobs).await;
+    let mut items = Vec::with_capacity(SUPPORTED_LANGUAGES.len());
+    let mut examples = Vec::new();
+    for (item, item_examples) in completed {
+        items.push(item);
+        for example in item_examples {
+            if examples.len() == 3 {
+                break;
+            }
+            if !examples.contains(&example) {
+                examples.push(example);
+            }
+        }
+    }
 
     Ok(TranslationResponse {
         detected_language,
+        is_single_word: single_word,
+        examples,
         items,
     })
 }
@@ -247,6 +397,27 @@ fn hide_main_window(window: WebviewWindow) -> Result<(), String> {
     window
         .hide()
         .map_err(|error| format!("无法隐藏窗口：{error}"))
+}
+
+#[tauri::command]
+fn start_window_drag(window: WebviewWindow) -> Result<(), String> {
+    window
+        .start_dragging()
+        .map_err(|error| format!("无法移动窗口：{error}"))
+}
+
+#[tauri::command]
+fn resize_main_window(window: WebviewWindow, width: f64, height: f64) -> Result<(), String> {
+    if !width.is_finite() || !height.is_finite() {
+        return Err("窗口尺寸无效".into());
+    }
+
+    window
+        .set_size(LogicalSize::new(
+            width.clamp(480.0, 900.0),
+            height.clamp(270.0, 900.0),
+        ))
+        .map_err(|error| format!("无法调整窗口大小：{error}"))
 }
 
 #[tauri::command]
@@ -331,6 +502,8 @@ pub fn run() {
             translate_all,
             set_window_pinned,
             hide_main_window,
+            start_window_drag,
+            resize_main_window,
             get_active_shortcut
         ])
         .run(tauri::generate_context!())
@@ -377,19 +550,70 @@ mod tests {
     }
 
     #[test]
+    fn recognises_single_words_without_treating_sentences_as_words() {
+        assert!(is_single_word("bank", "en"));
+        assert!(is_single_word("mother-in-law", "en"));
+        assert!(is_single_word("銀行", "zh-TW"));
+        assert!(is_single_word("走る", "ja"));
+        assert!(!is_single_word("open the bank", "en"));
+        assert!(!is_single_word("你好，世界", "zh-CN"));
+    }
+
+    #[test]
+    fn parses_dictionary_senses() {
+        let body = r#"[[["银行","bank",null,null,10]],[["noun",["银行","河岸","库"]]],"en"]"#;
+        let translation = parse_google_translation(body).unwrap();
+
+        assert_eq!(translation.text, "银行");
+        assert_eq!(translation.senses.len(), 1);
+        assert_eq!(translation.senses[0].part_of_speech, "noun");
+        assert_eq!(translation.senses[0].meanings, ["银行", "河岸", "库"]);
+    }
+
+    #[test]
+    fn removes_markup_from_dictionary_examples() {
+        assert_eq!(
+            strip_google_markup("I work at a <b>bank</b> &amp; save money."),
+            "I work at a bank & save money."
+        );
+    }
+
+    #[test]
     #[ignore = "requires a live Google Translate connection"]
     fn translates_with_google_live() {
         let client = Client::builder()
             .timeout(Duration::from_secs(15))
-            .user_agent("Mozilla/5.0 LinguaDock-Test/0.1")
+            .user_agent("Mozilla/5.0 LinguaDock-Test/1.0")
+            .build()
+            .unwrap();
+
+        let translated = tauri::async_runtime::block_on(translate_one(
+            &client,
+            "你好，世界",
+            "zh-CN",
+            "en",
+            false,
+        ))
+        .unwrap();
+
+        assert!(translated.text.to_lowercase().contains("hello"));
+    }
+
+    #[test]
+    #[ignore = "requires a live Google Translate connection"]
+    fn translates_dictionary_details_live() {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(15))
+            .user_agent("Mozilla/5.0 LinguaDock-Test/1.0")
             .build()
             .unwrap();
 
         let translated =
-            tauri::async_runtime::block_on(translate_one(&client, "你好，世界", "zh-CN", "en"))
+            tauri::async_runtime::block_on(translate_one(&client, "bank", "en", "zh-CN", true))
                 .unwrap();
 
-        assert!(translated.to_lowercase().contains("hello"));
+        assert!(!translated.senses.is_empty());
+        assert!(!translated.examples.is_empty());
     }
 
     #[test]

@@ -1,7 +1,7 @@
 [package]
 name = "linguadock"
-version = "0.1.0"
-description = "A tiny always-on-top four-language Google Translate desktop popup"
+version = "1.0.0"
+description = "An adaptive always-on-top four-language Google Translate desktop popup"
 authors = ["PascalePaF"]
 edition = "2021"
 license = "MIT"

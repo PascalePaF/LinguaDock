@@ -1,6 +1,6 @@
 # LinguaDock
 
-一个轻量、置顶、随叫随到的 Windows 四语翻译小窗。
+一个极简、置顶、随叫随到的 Windows 四语翻译小窗。
 
 输入**简体中文、English、日本語或繁體中文**中的任意一种，LinguaDock 会自动识别来源语言，并同时给出四语对照。默认快捷键 `Ctrl + Alt + G` 可以在任何应用中唤出窗口。
 
@@ -12,11 +12,15 @@
 
 - 四语同时输出：简体中文、英语、日语、繁体中文
 - 自动识别来源语言，也可以手动指定，解决只含通用汉字时的简繁歧义
-- 输入后自动翻译，并正确处理中文、日文输入法的组合输入过程
+- 输入单词时展示 Google 返回的常见词性、多义项和简短用法
+- 输入后自动翻译；在输入框按 `Ctrl + Enter` 可立即翻译
 - `Ctrl + Alt + G` 全局快捷键唤出窗口；如已被占用，自动回退到 `Ctrl + Shift + G`
+- 真正无边框的小窗，拖动标题栏任意空白位置即可移动
+- 根据输入长度、译文长度和词典内容自动调整窗口宽高
+- 日间 / 夜间主题一键切换，并记住选择
 - 默认置顶；标题栏图钉按钮可随时取消或恢复置顶
 - 关闭窗口后常驻系统托盘，单击托盘图标即可再次显示
-- 每种结果都可单独复制
+- 点击四种语言中任意一张结果卡的任何位置即可复制该结果及其义项
 - 单实例运行，不会因为重复启动出现多个窗口
 - 不保存翻译历史，不采集遥测数据
 - Windows 安装版与免安装便携版同时发布
@@ -25,8 +29,8 @@
 
 前往 [Releases](https://github.com/PascalePaF/LinguaDock/releases/latest)：
 
-- **安装版**：下载 `LinguaDock_0.1.0_x64-setup.exe`，按向导安装。
-- **免安装版**：下载 `LinguaDock_0.1.0_windows_x64_portable.zip`，解压后运行 `LinguaDock.exe`。
+- **安装版**：下载 `LinguaDock_1.0.0_x64-setup.exe`，按向导安装。
+- **免安装版**：下载 `LinguaDock_1.0.0_windows_x64_portable.zip`，解压后运行 `LinguaDock.exe`。
 - `SHA256SUMS.txt` 提供发布文件校验值。
 
 系统要求：Windows 10/11 x64，且系统中有 Microsoft Edge WebView2 Runtime。Windows 11 通常已经自带；安装版会在缺失时下载 WebView2 引导程序。
@@ -37,13 +41,15 @@
 
 | 操作 | 方式 |
 | --- | --- |
-| 在任意应用中唤出 | `Ctrl + Alt + G`；冲突时为 `Ctrl + Shift + G`，界面会显示实际按键 |
+| 在任意应用中唤出 | `Ctrl + Alt + G`；冲突时自动使用 `Ctrl + Shift + G` |
 | 立即翻译 | `Ctrl + Enter` |
-| 自动翻译 | 停止输入约 0.5 秒后自动执行 |
-| 隐藏到托盘 | `Esc`、标题栏关闭按钮或最小化样式按钮 |
+| 自动翻译 | 停止输入约 0.6 秒后自动执行 |
+| 移动窗口 | 按住标题栏空白处拖动 |
+| 隐藏到托盘 | `Esc` 或标题栏关闭按钮 |
 | 恢复窗口 | 单击托盘图标或再次按全局快捷键 |
 | 置顶/取消置顶 | 标题栏图钉按钮 |
-| 复制某种译文 | 对应结果卡右上角复制按钮 |
+| 切换日间/夜间主题 | 标题栏主题按钮 |
+| 复制某种译文 | 点击对应结果卡内任意位置 |
 
 ## Google 翻译与隐私说明
 
@@ -60,7 +66,7 @@ LinguaDock 只会把你在输入框中提交的文字、来源语言和目标语
 - [GTranslate Desktop](https://github.com/NativeDesktop/GTranslate) 直接把 Google Translate 网页封装为 Electron 应用，简单直接，但体积与交互更接近完整网页。
 - [WinLens](https://github.com/marco-beltrame/WinLens) 聚焦屏幕 OCR 和原位覆盖翻译，适合翻译不可选中的屏幕内容，不是快速输入式四语对照工具。
 
-LinguaDock 的范围刻意保持很小：**输入文字 → 自动识别 → 一次得到四语结果**。本项目为独立实现，没有复制这些项目的源码。更完整的对比见 [调研记录](docs/related-projects.md)。
+LinguaDock 的范围刻意保持很小：**输入文字 → 自动识别 → 一次得到四语结果**。本项目为独立实现，没有复制这些项目的源码。更完整的对比见 [调研记录](docs/related-projects.md)。版本变化见 [CHANGELOG](CHANGELOG.md)。
 
 ## 从源码构建
 

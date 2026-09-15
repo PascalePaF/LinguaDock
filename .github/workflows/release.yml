@@ -46,7 +46,7 @@ jobs:
           $version = "${{ github.ref_name }}".TrimStart('v')
           New-Item -ItemType Directory -Force -Path release, release/portable | Out-Null
           Copy-Item src-tauri/target/release/linguadock.exe release/portable/LinguaDock.exe
-          Copy-Item README.md, README_EN.md, LICENSE, THIRD_PARTY_NOTICES.md release/portable/
+          Copy-Item README.md, README_EN.md, CHANGELOG.md, LICENSE, THIRD_PARTY_NOTICES.md release/portable/
           Compress-Archive -Path release/portable/* -DestinationPath release/LinguaDock_${version}_windows_x64_portable.zip
           Copy-Item src-tauri/target/release/bundle/nsis/*-setup.exe release/
           Get-ChildItem release -File | ForEach-Object {
@@ -71,10 +71,10 @@ jobs:
           body: |
             ## LinguaDock ${{ github.ref_name }}
 
-            Windows x64 初始公开版本。
+            Windows x64 正式版：无边框可拖动小窗、四语结果整卡复制、单词多义项与用法、内容自适应窗口，以及日间 / 夜间主题。
 
-            - 安装版：`LinguaDock_0.1.0_x64-setup.exe`
-            - 免安装版：`LinguaDock_0.1.0_windows_x64_portable.zip`
+            - 安装版：`LinguaDock_<版本>_x64-setup.exe`
+            - 免安装版：`LinguaDock_<版本>_windows_x64_portable.zip`
             - 校验文件：`SHA256SUMS.txt`
 
             首次运行时若 Windows SmartScreen 提示“未知发布者”，请核对本 Release 的 SHA-256 校验值。本版本尚未使用商业代码签名证书。

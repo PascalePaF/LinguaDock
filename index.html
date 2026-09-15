@@ -1,27 +1,39 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#111827" />
+    <meta name="theme-color" content="#ffffff" />
     <meta
       name="description"
-      content="LinguaDock：常驻桌面的四语 Google 翻译小窗"
+      content="LinguaDock：简中、英语、日语与繁体中文四语 Google 翻译小窗"
     />
     <title>LinguaDock</title>
   </head>
   <body>
     <main id="app" class="app-shell">
-      <header class="titlebar" data-tauri-drag-region>
-        <div class="brand" data-tauri-drag-region>
+      <header id="titlebar" class="titlebar">
+        <div class="brand">
           <span class="brand-mark" aria-hidden="true">L</span>
-          <div class="brand-copy" data-tauri-drag-region>
-            <strong data-tauri-drag-region>LinguaDock</strong>
-            <span data-tauri-drag-region>四语即译</span>
-          </div>
+          <strong>LinguaDock</strong>
         </div>
 
         <div class="window-actions">
+          <button
+            id="themeButton"
+            class="icon-button"
+            type="button"
+            aria-label="切换到夜间主题"
+            title="切换到夜间主题"
+          >
+            <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20.1 15.6A8.5 8.5 0 0 1 8.4 3.9 8.5 8.5 0 1 0 20.1 15.6Z" />
+            </svg>
+            <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="3.5" />
+              <path d="M12 2v2.2M12 19.8V22M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2 12h2.2M19.8 12H22M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6" />
+            </svg>
+          </button>
           <button
             id="pinButton"
             class="icon-button is-active"
@@ -34,22 +46,11 @@
             </svg>
           </button>
           <button
-            id="hideButton"
-            class="icon-button"
-            type="button"
-            aria-label="隐藏到系统托盘"
-            title="隐藏到系统托盘（Esc）"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 12h12" />
-            </svg>
-          </button>
-          <button
             id="closeButton"
             class="icon-button close-button"
             type="button"
             aria-label="隐藏到系统托盘"
-            title="隐藏到系统托盘"
+            title="隐藏到系统托盘（Esc）"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="m7 7 10 10M17 7 7 17" />
@@ -58,150 +59,154 @@
         </div>
       </header>
 
-      <section class="workspace">
-        <div class="intro-row">
-          <div>
-            <h1>输入一次，四语对照</h1>
-            <p>简中 · English · 日本語 · 繁體中文</p>
-          </div>
-          <span id="shortcutPill" class="shortcut-pill" title="在任意应用中唤出 LinguaDock">
-            <kbd>Ctrl</kbd><i>+</i><kbd>Alt</kbd><i>+</i><kbd>G</kbd>
-          </span>
-        </div>
-
-        <section class="composer" aria-labelledby="composerLabel">
+      <section id="workspace" class="workspace">
+        <section id="composer" class="composer" aria-labelledby="composerLabel">
           <div class="composer-header">
             <label id="composerLabel" for="sourceText">原文</label>
-            <div class="source-mode">
-              <span class="spark" aria-hidden="true">✦</span>
-              <label class="sr-only" for="sourceLanguage">来源语言</label>
-              <select id="sourceLanguage" title="来源语言，默认自动识别">
+            <label class="source-mode" for="sourceLanguage">
+              <span class="sr-only">来源语言</span>
+              <select id="sourceLanguage" title="选择来源语言">
                 <option value="auto">自动识别</option>
                 <option value="zh-CN">简体中文</option>
                 <option value="en">English</option>
                 <option value="ja">日本語</option>
                 <option value="zh-TW">繁體中文</option>
               </select>
-            </div>
+            </label>
           </div>
 
           <textarea
             id="sourceText"
             maxlength="5000"
-            rows="4"
+            rows="3"
             autofocus
             spellcheck="true"
-            placeholder="输入或粘贴中文、英文、日文、繁体中文…"
-            aria-describedby="composerHelp"
+            placeholder="输入或粘贴文字…"
           ></textarea>
 
-          <div class="composer-footer" id="composerHelp">
-            <span><b id="characterCount">0</b> / 5000</span>
+          <div class="composer-footer">
+            <span class="character-counter"><b id="characterCount">0</b> / 5000</span>
             <div class="composer-actions">
               <button id="clearButton" class="text-button" type="button" disabled>
                 清空
               </button>
               <button id="translateButton" class="primary-button" type="button" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="m5 12 4 4L19 6" />
-                </svg>
-                立即翻译
+                翻译
                 <kbd>Ctrl ↵</kbd>
               </button>
             </div>
           </div>
         </section>
 
-        <div id="statusRow" class="status-row" aria-live="polite">
-          <span class="status-dot"></span>
-          <span id="statusText">等待输入内容</span>
-          <span id="providerText">Google 翻译</span>
+        <div id="statusRow" class="status-row" aria-live="polite" hidden>
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="statusText"></span>
         </div>
 
-        <section id="resultsGrid" class="results-grid" aria-label="四语翻译结果">
-          <article class="result-card language-zh-cn" data-language="zh-CN">
-            <header>
-              <div class="language-name">
-                <span class="language-dot"></span>
-                <strong>简体中文</strong>
-                <span class="language-code">ZH</span>
-                <span class="source-badge">原文</span>
-              </div>
-              <button class="copy-button" type="button" aria-label="复制简体中文" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
+        <section id="resultsPanel" class="results-panel" hidden>
+          <div id="resultsGrid" class="results-grid" aria-label="四语翻译结果">
+            <article
+              class="result-card language-zh-cn is-disabled"
+              data-language="zh-CN"
+              tabindex="0"
+              role="button"
+              aria-label="复制简体中文结果"
+              aria-disabled="true"
+            >
+              <header>
+                <div class="language-name">
+                  <span class="language-dot" aria-hidden="true"></span>
+                  <strong>简体中文</strong>
+                  <span class="language-code">ZH</span>
+                  <span class="source-badge">原文</span>
+                </div>
+                <svg class="copy-glyph" viewBox="0 0 24 24" aria-hidden="true">
                   <rect x="8" y="8" width="11" height="11" rx="2" />
                   <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
                 </svg>
-              </button>
-            </header>
-            <p class="result-text is-placeholder">等待翻译…</p>
-          </article>
+              </header>
+              <p class="result-text"></p>
+              <div class="dictionary-senses" hidden></div>
+            </article>
 
-          <article class="result-card language-en" data-language="en">
-            <header>
-              <div class="language-name">
-                <span class="language-dot"></span>
-                <strong>English</strong>
-                <span class="language-code">EN</span>
-                <span class="source-badge">原文</span>
-              </div>
-              <button class="copy-button" type="button" aria-label="复制英文" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
+            <article
+              class="result-card language-en is-disabled"
+              data-language="en"
+              tabindex="0"
+              role="button"
+              aria-label="复制英语结果"
+              aria-disabled="true"
+            >
+              <header>
+                <div class="language-name">
+                  <span class="language-dot" aria-hidden="true"></span>
+                  <strong>English</strong>
+                  <span class="language-code">EN</span>
+                  <span class="source-badge">原文</span>
+                </div>
+                <svg class="copy-glyph" viewBox="0 0 24 24" aria-hidden="true">
                   <rect x="8" y="8" width="11" height="11" rx="2" />
                   <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
                 </svg>
-              </button>
-            </header>
-            <p class="result-text is-placeholder">Waiting…</p>
-          </article>
+              </header>
+              <p class="result-text"></p>
+              <div class="dictionary-senses" hidden></div>
+            </article>
 
-          <article class="result-card language-ja" data-language="ja">
-            <header>
-              <div class="language-name">
-                <span class="language-dot"></span>
-                <strong>日本語</strong>
-                <span class="language-code">JA</span>
-                <span class="source-badge">原文</span>
-              </div>
-              <button class="copy-button" type="button" aria-label="复制日文" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
+            <article
+              class="result-card language-ja is-disabled"
+              data-language="ja"
+              tabindex="0"
+              role="button"
+              aria-label="复制日语结果"
+              aria-disabled="true"
+            >
+              <header>
+                <div class="language-name">
+                  <span class="language-dot" aria-hidden="true"></span>
+                  <strong>日本語</strong>
+                  <span class="language-code">JA</span>
+                  <span class="source-badge">原文</span>
+                </div>
+                <svg class="copy-glyph" viewBox="0 0 24 24" aria-hidden="true">
                   <rect x="8" y="8" width="11" height="11" rx="2" />
                   <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
                 </svg>
-              </button>
-            </header>
-            <p class="result-text is-placeholder">翻訳を待っています…</p>
-          </article>
+              </header>
+              <p class="result-text"></p>
+              <div class="dictionary-senses" hidden></div>
+            </article>
 
-          <article class="result-card language-zh-tw" data-language="zh-TW">
-            <header>
-              <div class="language-name">
-                <span class="language-dot"></span>
-                <strong>繁體中文</strong>
-                <span class="language-code">繁</span>
-                <span class="source-badge">原文</span>
-              </div>
-              <button class="copy-button" type="button" aria-label="复制繁体中文" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
+            <article
+              class="result-card language-zh-tw is-disabled"
+              data-language="zh-TW"
+              tabindex="0"
+              role="button"
+              aria-label="复制繁体中文结果"
+              aria-disabled="true"
+            >
+              <header>
+                <div class="language-name">
+                  <span class="language-dot" aria-hidden="true"></span>
+                  <strong>繁體中文</strong>
+                  <span class="language-code">繁</span>
+                  <span class="source-badge">原文</span>
+                </div>
+                <svg class="copy-glyph" viewBox="0 0 24 24" aria-hidden="true">
                   <rect x="8" y="8" width="11" height="11" rx="2" />
                   <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
                 </svg>
-              </button>
-            </header>
-            <p class="result-text is-placeholder">等待翻譯…</p>
-          </article>
+              </header>
+              <p class="result-text"></p>
+              <div class="dictionary-senses" hidden></div>
+            </article>
+          </div>
+
+          <section id="wordUsage" class="word-usage" aria-labelledby="usageTitle" hidden>
+            <h2 id="usageTitle">常见用法</h2>
+            <ul id="usageList"></ul>
+          </section>
         </section>
-
-        <footer class="app-footer">
-          <span>自动翻译已开启</span>
-          <span class="privacy-note">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3 5 6v5c0 4.5 2.8 8.1 7 10 4.2-1.9 7-5.5 7-10V6l-7-3Z" />
-              <path d="m9.5 12 1.7 1.7 3.5-3.7" />
-            </svg>
-            仅发送你输入的文字
-          </span>
-        </footer>
       </section>
 
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
