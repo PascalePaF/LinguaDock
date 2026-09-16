@@ -2,6 +2,28 @@
 
 本项目按 [Semantic Versioning](https://semver.org/) 记录版本变化。
 
+## [1.0.2] - 2026-09-16
+
+### 新增
+
+- 智能、仅离线、仅在线三种翻译模式
+- 内置基础词典 + OpenCC、LibreTranslate / Argos、Ollama、LM Studio 四种离线引擎
+- 1–500 字智能分流阈值，以及可关闭的“离线不完整时在线接力”
+- Google 与自定义 OpenAI 兼容 AI API 两种在线引擎
+- 使用 Windows 凭据管理器保存 AI API 密钥
+- 翻译引擎连接测试，以及本地服务地址、模型名称的持久化设置
+- 全新“译栈 LinguaDock”品牌与原创四语对话图标
+- 离线引擎安装、隐私边界和模型选择指南
+
+### 改进
+
+- 默认改为 `Enter` 翻译、`Ctrl + Enter` 换行；可在设置中交换
+- 全局快捷键改为显示 / 隐藏切换，再次按下时隐藏窗口但保留后台托盘
+- 设置中心改为“翻译 / 通用 / 更新”三栏，复杂设置按所选引擎动态展开
+- 状态行显示实际使用的引擎，以及智能模式是否发生在线接力
+- 离线服务只允许本机、私有局域网 IP 或 `.local` 地址，避免误标公网请求
+- 保留原产品名、包标识和更新公钥，使 V1.0.1 可以直接热更新
+
 ## [1.0.1] - 2026-09-16
 
 ### 新增
@@ -41,6 +63,7 @@
 - 简体中文、英语、日语与繁体中文四语同步翻译
 - 自动语言识别、全局快捷键、窗口置顶、系统托盘与单实例运行
 
+[1.0.2]: https://github.com/PascalePaF/LinguaDock/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/PascalePaF/LinguaDock/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/PascalePaF/LinguaDock/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/PascalePaF/LinguaDock/releases/tag/v0.1.0

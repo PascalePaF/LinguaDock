@@ -1,0 +1,235 @@
+[
+  {
+    "aliases": ["hello", "hi", "你好", "您好", "哈囉", "こんにちは"],
+    "translations": {"zh-CN": "你好", "en": "hello", "ja": "こんにちは", "zh-TW": "你好"},
+    "examples": ["Hello, nice to meet you.", "Hello everyone!"]
+  },
+  {
+    "aliases": ["goodbye", "bye", "再见", "再見", "さようなら"],
+    "translations": {"zh-CN": "再见", "en": "goodbye", "ja": "さようなら", "zh-TW": "再見"},
+    "examples": ["Goodbye, see you tomorrow."]
+  },
+  {
+    "aliases": ["thank you", "thanks", "谢谢", "謝謝", "ありがとう"],
+    "translations": {"zh-CN": "谢谢", "en": "thank you", "ja": "ありがとう", "zh-TW": "謝謝"},
+    "examples": ["Thank you for your help."]
+  },
+  {
+    "aliases": ["please", "请", "請", "お願いします"],
+    "translations": {"zh-CN": "请", "en": "please", "ja": "お願いします", "zh-TW": "請"},
+    "examples": ["Please wait a moment."]
+  },
+  {
+    "aliases": ["sorry", "对不起", "抱歉", "對不起", "すみません", "ごめんなさい"],
+    "translations": {"zh-CN": "对不起", "en": "sorry", "ja": "すみません", "zh-TW": "對不起"},
+    "examples": ["Sorry, I am late."]
+  },
+  {
+    "aliases": ["yes", "是", "好的", "はい"],
+    "translations": {"zh-CN": "是", "en": "yes", "ja": "はい", "zh-TW": "是"}
+  },
+  {
+    "aliases": ["no", "不", "不是", "いいえ"],
+    "translations": {"zh-CN": "不", "en": "no", "ja": "いいえ", "zh-TW": "不"}
+  },
+  {
+    "aliases": ["good morning", "早上好", "早安", "おはようございます"],
+    "translations": {"zh-CN": "早上好", "en": "good morning", "ja": "おはようございます", "zh-TW": "早安"}
+  },
+  {
+    "aliases": ["good night", "晚安", "おやすみなさい"],
+    "translations": {"zh-CN": "晚安", "en": "good night", "ja": "おやすみなさい", "zh-TW": "晚安"}
+  },
+  {
+    "aliases": ["welcome", "欢迎", "歡迎", "ようこそ"],
+    "translations": {"zh-CN": "欢迎", "en": "welcome", "ja": "ようこそ", "zh-TW": "歡迎"}
+  },
+  {
+    "aliases": ["bank", "银行", "銀行", "河岸", "土手", "バンク"],
+    "translations": {"zh-CN": "银行；河岸", "en": "bank", "ja": "銀行；土手", "zh-TW": "銀行；河岸"},
+    "senses": {
+      "zh-CN": [
+        {"partOfSpeech": "noun", "meanings": ["银行", "河岸", "库；储备"]},
+        {"partOfSpeech": "verb", "meanings": ["把钱存入银行", "倾斜转弯", "堆积"]}
+      ],
+      "en": [
+        {"partOfSpeech": "noun", "meanings": ["financial institution", "side of a river", "reserve or store"]},
+        {"partOfSpeech": "verb", "meanings": ["deposit money", "tilt while turning", "pile up"]}
+      ],
+      "ja": [
+        {"partOfSpeech": "noun", "meanings": ["銀行", "川岸・土手", "貯蔵"]},
+        {"partOfSpeech": "verb", "meanings": ["預金する", "傾ける", "積み上げる"]}
+      ],
+      "zh-TW": [
+        {"partOfSpeech": "noun", "meanings": ["銀行", "河岸", "庫；儲備"]},
+        {"partOfSpeech": "verb", "meanings": ["把錢存入銀行", "傾斜轉彎", "堆積"]}
+      ]
+    },
+    "examples": ["I need to go to the bank.", "They sat on the river bank."]
+  },
+  {
+    "aliases": ["book", "书", "書", "预订", "預訂", "本", "予約する"],
+    "translations": {"zh-CN": "书；预订", "en": "book", "ja": "本；予約する", "zh-TW": "書；預訂"},
+    "senses": {
+      "zh-CN": [{"partOfSpeech": "noun", "meanings": ["书籍"]}, {"partOfSpeech": "verb", "meanings": ["预订", "登记"]}],
+      "en": [{"partOfSpeech": "noun", "meanings": ["a written work"]}, {"partOfSpeech": "verb", "meanings": ["reserve", "record"]}],
+      "ja": [{"partOfSpeech": "noun", "meanings": ["本・書籍"]}, {"partOfSpeech": "verb", "meanings": ["予約する", "記録する"]}],
+      "zh-TW": [{"partOfSpeech": "noun", "meanings": ["書籍"]}, {"partOfSpeech": "verb", "meanings": ["預訂", "登記"]}]
+    },
+    "examples": ["I am reading a book.", "Please book a table for two."]
+  },
+  {
+    "aliases": ["light", "光", "灯", "燈", "轻", "輕", "明るい", "軽い"],
+    "translations": {"zh-CN": "光；灯；轻的", "en": "light", "ja": "光；明かり；軽い", "zh-TW": "光；燈；輕的"},
+    "senses": {
+      "zh-CN": [{"partOfSpeech": "noun", "meanings": ["光", "灯"]}, {"partOfSpeech": "adjective", "meanings": ["轻的", "明亮的", "淡的"]}],
+      "en": [{"partOfSpeech": "noun", "meanings": ["illumination", "lamp"]}, {"partOfSpeech": "adjective", "meanings": ["not heavy", "bright", "pale"]}],
+      "ja": [{"partOfSpeech": "noun", "meanings": ["光", "明かり"]}, {"partOfSpeech": "adjective", "meanings": ["軽い", "明るい", "薄い"]}],
+      "zh-TW": [{"partOfSpeech": "noun", "meanings": ["光", "燈"]}, {"partOfSpeech": "adjective", "meanings": ["輕的", "明亮的", "淡的"]}]
+    },
+    "examples": ["Turn on the light.", "This bag is very light."]
+  },
+  {
+    "aliases": ["run", "跑", "运行", "運行", "经营", "經營", "走る", "運営する"],
+    "translations": {"zh-CN": "跑；运行；经营", "en": "run", "ja": "走る；動く；運営する", "zh-TW": "跑；運行；經營"},
+    "senses": {
+      "zh-CN": [{"partOfSpeech": "verb", "meanings": ["跑步", "运行", "经营", "流动"]}],
+      "en": [{"partOfSpeech": "verb", "meanings": ["move quickly on foot", "operate", "manage", "flow"]}],
+      "ja": [{"partOfSpeech": "verb", "meanings": ["走る", "作動する", "運営する", "流れる"]}],
+      "zh-TW": [{"partOfSpeech": "verb", "meanings": ["跑步", "運行", "經營", "流動"]}]
+    },
+    "examples": ["I run every morning.", "The program is running."]
+  },
+  {
+    "aliases": ["right", "正确", "正確", "右边", "右邊", "权利", "權利", "正しい", "右"],
+    "translations": {"zh-CN": "正确的；右边；权利", "en": "right", "ja": "正しい；右；権利", "zh-TW": "正確的；右邊；權利"},
+    "senses": {
+      "zh-CN": [{"partOfSpeech": "adjective", "meanings": ["正确的", "右边的"]}, {"partOfSpeech": "noun", "meanings": ["右边", "权利"]}],
+      "en": [{"partOfSpeech": "adjective", "meanings": ["correct", "on the right side"]}, {"partOfSpeech": "noun", "meanings": ["direction", "entitlement"]}],
+      "ja": [{"partOfSpeech": "adjective", "meanings": ["正しい", "右側の"]}, {"partOfSpeech": "noun", "meanings": ["右", "権利"]}],
+      "zh-TW": [{"partOfSpeech": "adjective", "meanings": ["正確的", "右邊的"]}, {"partOfSpeech": "noun", "meanings": ["右邊", "權利"]}]
+    },
+    "examples": ["Your answer is right.", "Turn right at the corner."]
+  },
+  {
+    "aliases": ["price", "价格", "價格", "价钱", "價錢", "価格"],
+    "translations": {"zh-CN": "价格", "en": "price", "ja": "価格", "zh-TW": "價格"},
+    "examples": ["The price is too high."]
+  },
+  {
+    "aliases": ["customer", "客户", "客戶", "顾客", "顧客", "お客様", "顧客"],
+    "translations": {"zh-CN": "客户；顾客", "en": "customer", "ja": "顧客；お客様", "zh-TW": "客戶；顧客"}
+  },
+  {
+    "aliases": ["software", "软件", "軟體", "ソフトウェア"],
+    "translations": {"zh-CN": "软件", "en": "software", "ja": "ソフトウェア", "zh-TW": "軟體"}
+  },
+  {
+    "aliases": ["network", "网络", "網路", "網絡", "ネットワーク"],
+    "translations": {"zh-CN": "网络", "en": "network", "ja": "ネットワーク", "zh-TW": "網路"}
+  },
+  {
+    "aliases": ["translate", "translation", "翻译", "翻譯", "訳す", "翻訳"],
+    "translations": {"zh-CN": "翻译", "en": "translate", "ja": "翻訳する", "zh-TW": "翻譯"}
+  },
+  {
+    "aliases": ["language", "语言", "語言", "言語"],
+    "translations": {"zh-CN": "语言", "en": "language", "ja": "言語", "zh-TW": "語言"}
+  },
+  {
+    "aliases": ["computer", "电脑", "電腦", "计算机", "計算機", "コンピューター"],
+    "translations": {"zh-CN": "电脑", "en": "computer", "ja": "コンピューター", "zh-TW": "電腦"}
+  },
+  {
+    "aliases": ["window", "窗口", "视窗", "視窗", "ウィンドウ"],
+    "translations": {"zh-CN": "窗口", "en": "window", "ja": "ウィンドウ", "zh-TW": "視窗"}
+  },
+  {
+    "aliases": ["settings", "setting", "设置", "設定", "設定画面"],
+    "translations": {"zh-CN": "设置", "en": "settings", "ja": "設定", "zh-TW": "設定"}
+  },
+  {
+    "aliases": ["update", "更新", "アップデート"],
+    "translations": {"zh-CN": "更新", "en": "update", "ja": "更新；アップデート", "zh-TW": "更新"}
+  },
+  {
+    "aliases": ["offline", "离线", "離線", "オフライン"],
+    "translations": {"zh-CN": "离线", "en": "offline", "ja": "オフライン", "zh-TW": "離線"}
+  },
+  {
+    "aliases": ["online", "在线", "線上", "オンライン"],
+    "translations": {"zh-CN": "在线", "en": "online", "ja": "オンライン", "zh-TW": "線上"}
+  },
+  {
+    "aliases": ["today", "今天", "今日", "きょう"],
+    "translations": {"zh-CN": "今天", "en": "today", "ja": "今日", "zh-TW": "今天"}
+  },
+  {
+    "aliases": ["tomorrow", "明天", "明日", "あした"],
+    "translations": {"zh-CN": "明天", "en": "tomorrow", "ja": "明日", "zh-TW": "明天"}
+  },
+  {
+    "aliases": ["help", "帮助", "幫助", "帮忙", "幫忙", "助ける", "ヘルプ"],
+    "translations": {"zh-CN": "帮助", "en": "help", "ja": "助ける；ヘルプ", "zh-TW": "幫助"}
+  },
+  {
+    "aliases": ["stop", "停止", "停下", "止まる", "止める"],
+    "translations": {"zh-CN": "停止", "en": "stop", "ja": "止まる；止める", "zh-TW": "停止"}
+  },
+  {
+    "aliases": ["wait", "等待", "等候", "待つ"],
+    "translations": {"zh-CN": "等待", "en": "wait", "ja": "待つ", "zh-TW": "等待"}
+  },
+  {
+    "aliases": ["love", "爱", "愛", "喜欢", "喜歡", "愛する"],
+    "translations": {"zh-CN": "爱；喜欢", "en": "love", "ja": "愛；愛する", "zh-TW": "愛；喜歡"}
+  },
+  {
+    "aliases": ["time", "时间", "時間", "時刻"],
+    "translations": {"zh-CN": "时间", "en": "time", "ja": "時間", "zh-TW": "時間"}
+  },
+  {
+    "aliases": ["money", "钱", "錢", "金钱", "金錢", "お金"],
+    "translations": {"zh-CN": "钱", "en": "money", "ja": "お金", "zh-TW": "錢"}
+  },
+  {
+    "aliases": ["work", "工作", "働く", "仕事"],
+    "translations": {"zh-CN": "工作", "en": "work", "ja": "仕事；働く", "zh-TW": "工作"}
+  },
+  {
+    "aliases": ["home", "家", "家庭", "家里", "家裡", "自宅"],
+    "translations": {"zh-CN": "家", "en": "home", "ja": "家；自宅", "zh-TW": "家"}
+  },
+  {
+    "aliases": ["friend", "朋友", "友人", "友達"],
+    "translations": {"zh-CN": "朋友", "en": "friend", "ja": "友達", "zh-TW": "朋友"}
+  },
+  {
+    "aliases": ["water", "水", "お水"],
+    "translations": {"zh-CN": "水", "en": "water", "ja": "水", "zh-TW": "水"}
+  },
+  {
+    "aliases": ["food", "食物", "食品", "吃的", "吃的東西", "食べ物"],
+    "translations": {"zh-CN": "食物", "en": "food", "ja": "食べ物", "zh-TW": "食物"}
+  },
+  {
+    "aliases": ["airport", "机场", "機場", "空港"],
+    "translations": {"zh-CN": "机场", "en": "airport", "ja": "空港", "zh-TW": "機場"}
+  },
+  {
+    "aliases": ["where", "哪里", "哪裡", "どこ"],
+    "translations": {"zh-CN": "哪里", "en": "where", "ja": "どこ", "zh-TW": "哪裡"}
+  },
+  {
+    "aliases": ["how much", "多少钱", "多少錢", "いくら"],
+    "translations": {"zh-CN": "多少钱", "en": "how much", "ja": "いくら", "zh-TW": "多少錢"}
+  },
+  {
+    "aliases": ["I understand", "我明白", "我懂了", "我明白了", "わかりました"],
+    "translations": {"zh-CN": "我明白了", "en": "I understand", "ja": "わかりました", "zh-TW": "我明白了"}
+  },
+  {
+    "aliases": ["I don't understand", "我不明白", "我不懂", "わかりません"],
+    "translations": {"zh-CN": "我不明白", "en": "I don't understand", "ja": "わかりません", "zh-TW": "我不明白"}
+  }
+]

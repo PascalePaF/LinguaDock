@@ -10,6 +10,10 @@ type LanguageCode = "zh-CN" | "en" | "ja" | "zh-TW";
 type SourceChoice = LanguageCode | "auto";
 type Theme = "light" | "dark";
 type StatusMode = "loading" | "ready" | "error";
+type TranslationMode = "smart" | "offline" | "online";
+type OfflineEngine = "builtin" | "libretranslate" | "ollama" | "lmstudio";
+type OnlineEngine = "google" | "ai";
+type TranslationKey = "enter" | "ctrl-enter";
 
 interface DictionarySense {
   partOfSpeech: string;
@@ -29,6 +33,24 @@ interface TranslationResponse {
   isSingleWord: boolean;
   examples: string[];
   items: TranslationItem[];
+  engineLabel: string;
+  route: "offline" | "online" | "online-fallback";
+}
+
+interface TranslationSettings {
+  mode: TranslationMode;
+  offlineEngine: OfflineEngine;
+  onlineEngine: OnlineEngine;
+  smartThreshold: number;
+  allowSmartFallback: boolean;
+  libreEndpoint: string;
+  ollamaEndpoint: string;
+  ollamaModel: string;
+  lmStudioEndpoint: string;
+  lmStudioModel: string;
+  aiEndpoint: string;
+  aiModel: string;
+  translationKey: TranslationKey;
 }
 
 interface CardElements {
@@ -103,6 +125,42 @@ const resultsPanel = requiredElement<HTMLElement>("resultsPanel");
 const wordUsage = requiredElement<HTMLElement>("wordUsage");
 const usageList = requiredElement<HTMLUListElement>("usageList");
 const toast = requiredElement<HTMLElement>("toast");
+const translationMode = requiredElement<HTMLSelectElement>("translationMode");
+const modeDescription = requiredElement<HTMLElement>("modeDescription");
+const smartSettings = requiredElement<HTMLElement>("smartSettings");
+const smartThresholdRange = requiredElement<HTMLInputElement>("smartThresholdRange");
+const smartThreshold = requiredElement<HTMLInputElement>("smartThreshold");
+const smartFallbackToggle = requiredElement<HTMLInputElement>("smartFallbackToggle");
+const offlineEngineBlock = requiredElement<HTMLElement>("offlineEngineBlock");
+const offlineEngine = requiredElement<HTMLSelectElement>("offlineEngine");
+const offlineDescription = requiredElement<HTMLElement>("offlineDescription");
+const builtinOfflineNote = requiredElement<HTMLElement>("builtinOfflineNote");
+const libreEndpoint = requiredElement<HTMLInputElement>("libreEndpoint");
+const ollamaEndpoint = requiredElement<HTMLInputElement>("ollamaEndpoint");
+const ollamaModel = requiredElement<HTMLInputElement>("ollamaModel");
+const lmStudioEndpoint = requiredElement<HTMLInputElement>("lmStudioEndpoint");
+const lmStudioModel = requiredElement<HTMLInputElement>("lmStudioModel");
+const onlineEngineBlock = requiredElement<HTMLElement>("onlineEngineBlock");
+const onlineEngine = requiredElement<HTMLSelectElement>("onlineEngine");
+const onlineDescription = requiredElement<HTMLElement>("onlineDescription");
+const aiFields = requiredElement<HTMLElement>("aiFields");
+const aiEndpoint = requiredElement<HTMLInputElement>("aiEndpoint");
+const aiModel = requiredElement<HTMLInputElement>("aiModel");
+const aiApiKey = requiredElement<HTMLInputElement>("aiApiKey");
+const apiKeyStatus = requiredElement<HTMLElement>("apiKeyStatus");
+const saveApiKeyButton = requiredElement<HTMLButtonElement>("saveApiKeyButton");
+const deleteApiKeyButton = requiredElement<HTMLButtonElement>("deleteApiKeyButton");
+const testProviderButton = requiredElement<HTMLButtonElement>("testProviderButton");
+const providerTestStatus = requiredElement<HTMLElement>("providerTestStatus");
+const translationKey = requiredElement<HTMLSelectElement>("translationKey");
+const enterBehaviorDescription = requiredElement<HTMLElement>("enterBehaviorDescription");
+const translationKeyHint = requiredElement<HTMLElement>("translationKeyHint");
+const activeModeChip = requiredElement<HTMLElement>("activeModeChip");
+const settingsTabs = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-settings-tab]"));
+const settingsPages = Array.from(document.querySelectorAll<HTMLElement>("[data-settings-page]"));
+const offlineFieldGroups = Array.from(
+  document.querySelectorAll<HTMLElement>("[data-offline-field]"),
+);
 
 const cards = new Map<LanguageCode, CardElements>();
 document.querySelectorAll<HTMLElement>(".result-card").forEach((card) => {
@@ -137,6 +195,47 @@ let resultComplexity = { longestText: 0, senseCount: 0 };
 let lastRequestedSize: { width: number; height: number } | null = null;
 const currentResults = new Map<LanguageCode, string>();
 
+const DEFAULT_TRANSLATION_SETTINGS: TranslationSettings = {
+  mode: "smart",
+  offlineEngine: "builtin",
+  onlineEngine: "google",
+  smartThreshold: 40,
+  allowSmartFallback: true,
+  libreEndpoint: "http://127.0.0.1:5000",
+  ollamaEndpoint: "http://127.0.0.1:11434",
+  ollamaModel: "qwen2.5:3b",
+  lmStudioEndpoint: "http://127.0.0.1:1234/v1",
+  lmStudioModel: "local-model",
+  aiEndpoint: "https://api.openai.com/v1",
+  aiModel: "",
+  translationKey: "enter",
+};
+
+function loadTranslationSettings(): TranslationSettings {
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem("linguadock.translationSettings") ?? "{}",
+    ) as Partial<TranslationSettings>;
+    const merged = { ...DEFAULT_TRANSLATION_SETTINGS, ...stored };
+    if (!["smart", "offline", "online"].includes(merged.mode)) merged.mode = "smart";
+    if (!["builtin", "libretranslate", "ollama", "lmstudio"].includes(merged.offlineEngine)) {
+      merged.offlineEngine = "builtin";
+    }
+    if (!["google", "ai"].includes(merged.onlineEngine)) merged.onlineEngine = "google";
+    if (!["enter", "ctrl-enter"].includes(merged.translationKey)) merged.translationKey = "enter";
+    merged.smartThreshold = Math.max(
+      1,
+      Math.min(500, Number(merged.smartThreshold) || DEFAULT_TRANSLATION_SETTINGS.smartThreshold),
+    );
+    merged.allowSmartFallback = merged.allowSmartFallback !== false;
+    return merged;
+  } catch {
+    return { ...DEFAULT_TRANSLATION_SETTINGS };
+  }
+}
+
+let translationSettings = loadTranslationSettings();
+
 function normalizeError(error: unknown): string {
   if (typeof error === "string") return error;
   if (error instanceof Error) return error.message;
@@ -157,6 +256,163 @@ function showToast(message: string): void {
   toastTimer = window.setTimeout(() => {
     toast.classList.remove("is-visible");
   }, 1600);
+}
+
+function persistTranslationSettings(): void {
+  localStorage.setItem(
+    "linguadock.translationSettings",
+    JSON.stringify(translationSettings),
+  );
+}
+
+function translationOptions(): Omit<TranslationSettings, "translationKey"> {
+  return {
+    mode: translationSettings.mode,
+    offlineEngine: translationSettings.offlineEngine,
+    onlineEngine: translationSettings.onlineEngine,
+    smartThreshold: translationSettings.smartThreshold,
+    allowSmartFallback: translationSettings.allowSmartFallback,
+    libreEndpoint: translationSettings.libreEndpoint,
+    ollamaEndpoint: translationSettings.ollamaEndpoint,
+    ollamaModel: translationSettings.ollamaModel,
+    lmStudioEndpoint: translationSettings.lmStudioEndpoint,
+    lmStudioModel: translationSettings.lmStudioModel,
+    aiEndpoint: translationSettings.aiEndpoint,
+    aiModel: translationSettings.aiModel,
+  };
+}
+
+function readTranslationSettingsFromForm(): void {
+  translationSettings = {
+    mode: translationMode.value as TranslationMode,
+    offlineEngine: offlineEngine.value as OfflineEngine,
+    onlineEngine: onlineEngine.value as OnlineEngine,
+    smartThreshold: Math.max(1, Math.min(500, Number(smartThreshold.value) || 40)),
+    allowSmartFallback: smartFallbackToggle.checked,
+    libreEndpoint: libreEndpoint.value.trim() || DEFAULT_TRANSLATION_SETTINGS.libreEndpoint,
+    ollamaEndpoint: ollamaEndpoint.value.trim() || DEFAULT_TRANSLATION_SETTINGS.ollamaEndpoint,
+    ollamaModel: ollamaModel.value.trim(),
+    lmStudioEndpoint:
+      lmStudioEndpoint.value.trim() || DEFAULT_TRANSLATION_SETTINGS.lmStudioEndpoint,
+    lmStudioModel: lmStudioModel.value.trim(),
+    aiEndpoint: aiEndpoint.value.trim() || DEFAULT_TRANSLATION_SETTINGS.aiEndpoint,
+    aiModel: aiModel.value.trim(),
+    translationKey: translationKey.value as TranslationKey,
+  };
+  persistTranslationSettings();
+}
+
+function setModeChip(route?: TranslationResponse["route"]): void {
+  activeModeChip.classList.remove("is-offline", "is-online");
+  if (route === "offline") {
+    activeModeChip.textContent = "离线";
+    activeModeChip.classList.add("is-offline");
+  } else if (route === "online") {
+    activeModeChip.textContent = "在线";
+    activeModeChip.classList.add("is-online");
+  } else if (route === "online-fallback") {
+    activeModeChip.textContent = "智能接力";
+    activeModeChip.classList.add("is-online");
+  } else if (translationSettings.mode === "offline") {
+    activeModeChip.textContent = "仅离线";
+    activeModeChip.classList.add("is-offline");
+  } else if (translationSettings.mode === "online") {
+    activeModeChip.textContent = "仅在线";
+    activeModeChip.classList.add("is-online");
+  } else {
+    activeModeChip.textContent = "智能";
+  }
+}
+
+function renderTranslationSettings(): void {
+  translationMode.value = translationSettings.mode;
+  offlineEngine.value = translationSettings.offlineEngine;
+  onlineEngine.value = translationSettings.onlineEngine;
+  smartThreshold.value = String(translationSettings.smartThreshold);
+  smartThresholdRange.value = String(Math.min(200, translationSettings.smartThreshold));
+  smartFallbackToggle.checked = translationSettings.allowSmartFallback;
+  libreEndpoint.value = translationSettings.libreEndpoint;
+  ollamaEndpoint.value = translationSettings.ollamaEndpoint;
+  ollamaModel.value = translationSettings.ollamaModel;
+  lmStudioEndpoint.value = translationSettings.lmStudioEndpoint;
+  lmStudioModel.value = translationSettings.lmStudioModel;
+  aiEndpoint.value = translationSettings.aiEndpoint;
+  aiModel.value = translationSettings.aiModel;
+  translationKey.value = translationSettings.translationKey;
+
+  smartSettings.hidden = translationSettings.mode !== "smart";
+  offlineEngineBlock.hidden = translationSettings.mode === "online";
+  onlineEngineBlock.hidden = translationSettings.mode === "offline";
+  builtinOfflineNote.hidden = translationSettings.offlineEngine !== "builtin";
+  offlineFieldGroups.forEach((element) => {
+    element.hidden = element.dataset.offlineField !== translationSettings.offlineEngine;
+  });
+  aiFields.hidden = translationSettings.onlineEngine !== "ai";
+
+  modeDescription.textContent =
+    translationSettings.mode === "smart"
+      ? `≤ ${translationSettings.smartThreshold} 字离线，更多内容在线`
+      : translationSettings.mode === "offline"
+        ? "内容只在本机或本地服务中处理"
+        : "始终使用所选在线引擎";
+
+  const offlineDescriptions: Record<OfflineEngine, string> = {
+    builtin: "基础词典与简繁转换，零配置可用",
+    libretranslate: "本机 Argos 神经翻译服务",
+    ollama: "使用已下载的 Ollama 本地模型",
+    lmstudio: "使用 LM Studio 已加载的本地模型",
+  };
+  offlineDescription.textContent = offlineDescriptions[translationSettings.offlineEngine];
+  onlineDescription.textContent =
+    translationSettings.onlineEngine === "google"
+      ? "Google 翻译，无需密钥"
+      : "OpenAI 兼容接口，支持自定义地址与模型";
+
+  const enterTranslates = translationSettings.translationKey === "enter";
+  enterBehaviorDescription.textContent = enterTranslates
+    ? "Enter 翻译，Ctrl + Enter 换行"
+    : "Ctrl + Enter 翻译，Enter 换行";
+  translationKeyHint.textContent = enterTranslates ? "↵" : "Ctrl ↵";
+  setModeChip();
+  lastRequestedSize = null;
+  queueWindowFit();
+}
+
+function applyTranslationSettingsChange(translateExisting = true): void {
+  readTranslationSettingsFromForm();
+  renderTranslationSettings();
+  providerTestStatus.textContent = "设置已保存";
+  requestSequence += 1;
+  if (translateExisting && sourceText.value.trim()) scheduleTranslation(160);
+}
+
+function setSettingsTab(tab: string): void {
+  settingsTabs.forEach((button) => {
+    const active = button.dataset.settingsTab === tab;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  settingsPages.forEach((page) => {
+    page.hidden = page.dataset.settingsPage !== tab;
+  });
+  lastRequestedSize = null;
+  queueWindowFit(0);
+}
+
+async function refreshApiKeyState(): Promise<void> {
+  if (!IS_TAURI) {
+    apiKeyStatus.textContent = "桌面版中安全保存";
+    deleteApiKeyButton.disabled = true;
+    return;
+  }
+  try {
+    const saved = await invoke<boolean>("has_ai_api_key");
+    apiKeyStatus.textContent = saved ? "已安全保存" : "尚未保存";
+    deleteApiKeyButton.disabled = !saved;
+  } catch (error) {
+    apiKeyStatus.textContent = "无法读取";
+    console.warn("Unable to read AI credential state", error);
+  }
 }
 
 function applyTheme(theme: Theme, persist: boolean): void {
@@ -201,7 +457,7 @@ function visibleWorkspaceHeight(): number {
 }
 
 function desiredWindowWidth(): number {
-  if (settingsOpen) return 620;
+  if (settingsOpen) return 680;
   if (resultsPanel.hidden) {
     return sourceText.value.length > 240 ? 620 : 560;
   }
@@ -218,7 +474,7 @@ async function fitWindowToContent(): Promise<void> {
 
   const availableWidth = Math.max(480, Math.floor(window.screen.availWidth * 0.92));
   const availableHeight = Math.max(270, Math.floor(window.screen.availHeight * 0.92));
-  const width = Math.round(Math.min(900, availableWidth, desiredWindowWidth()));
+  const width = Math.round(Math.min(940, availableWidth, desiredWindowWidth()));
   const contentHeight = titlebar.getBoundingClientRect().height + visibleWorkspaceHeight() + 1;
   const height = Math.round(Math.min(900, availableHeight, Math.max(270, contentHeight)));
 
@@ -283,7 +539,8 @@ function setSettingsOpen(open: boolean): void {
     window.setTimeout(() => sourceText.focus(), 40);
   } else {
     void refreshAutostartState();
-    window.setTimeout(() => shortcutRecorder.focus(), 40);
+    void refreshApiKeyState();
+    window.setTimeout(() => settingsTabs.find((tab) => tab.classList.contains("is-active"))?.focus(), 40);
   }
   lastRequestedSize = null;
   queueWindowFit(0);
@@ -356,7 +613,7 @@ async function initializeShortcut(): Promise<void> {
       shortcutHint.textContent = "默认快捷键被占用";
       showToast("全局快捷键被占用，请在设置中重新指定");
     } else if (runningShortcut !== "Ctrl+Alt+G") {
-      showToast(`已改用 ${formatShortcut(runningShortcut)} 唤出窗口`);
+      showToast(`已改用 ${formatShortcut(runningShortcut)} 显示 / 隐藏窗口`);
     }
   } catch (error) {
     console.warn("Unable to initialize global shortcut", error);
@@ -503,6 +760,7 @@ function resetCards(): void {
   statusRow.hidden = true;
   wordUsage.hidden = true;
   usageList.replaceChildren();
+  setModeChip();
 
   cards.forEach(({ card, output, senses }) => {
     card.classList.remove("is-loading", "is-source", "is-error", "is-copied");
@@ -624,10 +882,11 @@ function renderResponse(response: TranslationResponse): void {
   }
 
   const detected = LANGUAGE_LABELS[response.detectedLanguage];
+  setModeChip(response.route);
   if (failedCount === 0) {
-    setStatus("ready", `${detected} · 已完成`);
+    setStatus("ready", `${detected} · ${response.engineLabel} · 已完成`);
   } else {
-    setStatus("error", `${detected} · ${failedCount} 项失败`);
+    setStatus("error", `${detected} · ${response.engineLabel} · ${failedCount} 项失败`);
   }
   queueWindowFit();
 }
@@ -643,7 +902,7 @@ async function translateNow(): Promise<void> {
 
   const requestId = ++requestSequence;
   setCardsLoading();
-  setStatus("loading", "翻译中…");
+  setStatus("loading", translationSettings.mode === "smart" ? "正在智能选择引擎…" : "翻译中…");
 
   if (!IS_TAURI) {
     cards.forEach(({ card, output }) => {
@@ -660,6 +919,7 @@ async function translateNow(): Promise<void> {
     const response = await invoke<TranslationResponse>("translate_all", {
       text,
       sourceHint: sourceLanguage.value as SourceChoice,
+      options: translationOptions(),
     });
     if (requestId !== requestSequence) return;
     renderResponse(response);
@@ -688,6 +948,13 @@ function scheduleTranslation(delay = 620): void {
   debounceTimer = window.setTimeout(() => {
     void translateNow();
   }, delay);
+}
+
+function insertNewlineAtCursor(): void {
+  const start = sourceText.selectionStart;
+  const end = sourceText.selectionEnd;
+  sourceText.setRangeText("\n", start, end, "end");
+  sourceText.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 async function hideWindow(): Promise<void> {
@@ -754,7 +1021,17 @@ sourceText.addEventListener("input", () => {
 });
 
 sourceText.addEventListener("keydown", (event) => {
-  if (event.ctrlKey && event.key === "Enter") {
+  if (event.key !== "Enter" || isComposing) return;
+
+  if (translationSettings.translationKey === "enter") {
+    if (event.ctrlKey) {
+      event.preventDefault();
+      insertNewlineAtCursor();
+    } else if (!event.shiftKey && !event.altKey && !event.metaKey) {
+      event.preventDefault();
+      void translateNow();
+    }
+  } else if (event.ctrlKey) {
     event.preventDefault();
     void translateNow();
   }
@@ -786,6 +1063,106 @@ settingsButton.addEventListener("click", () => {
 
 settingsDoneButton.addEventListener("click", () => {
   setSettingsOpen(false);
+});
+
+settingsTabs.forEach((button) => {
+  button.addEventListener("click", () => {
+    setSettingsTab(button.dataset.settingsTab ?? "translation");
+  });
+});
+
+[translationMode, offlineEngine, onlineEngine, translationKey].forEach((select) => {
+  select.addEventListener("change", () => applyTranslationSettingsChange());
+});
+
+smartFallbackToggle.addEventListener("change", () => applyTranslationSettingsChange());
+
+smartThresholdRange.addEventListener("input", () => {
+  smartThreshold.value = smartThresholdRange.value;
+  applyTranslationSettingsChange(false);
+});
+
+smartThreshold.addEventListener("change", () => {
+  const normalized = Math.max(1, Math.min(500, Number(smartThreshold.value) || 40));
+  smartThreshold.value = String(normalized);
+  applyTranslationSettingsChange();
+});
+
+[
+  libreEndpoint,
+  ollamaEndpoint,
+  ollamaModel,
+  lmStudioEndpoint,
+  lmStudioModel,
+  aiEndpoint,
+  aiModel,
+].forEach((input) => {
+  input.addEventListener("change", () => applyTranslationSettingsChange());
+});
+
+saveApiKeyButton.addEventListener("click", () => {
+  const apiKey = aiApiKey.value.trim();
+  if (!apiKey) {
+    showToast("请先输入 API 密钥");
+    aiApiKey.focus();
+    return;
+  }
+  if (!IS_TAURI) {
+    showToast("请在桌面应用中保存密钥");
+    return;
+  }
+  saveApiKeyButton.disabled = true;
+  void invoke("save_ai_api_key", { apiKey })
+    .then(async () => {
+      aiApiKey.value = "";
+      await refreshApiKeyState();
+      showToast("API 密钥已安全保存");
+    })
+    .catch((error) => showToast(normalizeError(error)))
+    .finally(() => {
+      saveApiKeyButton.disabled = false;
+    });
+});
+
+deleteApiKeyButton.addEventListener("click", () => {
+  if (!IS_TAURI) return;
+  deleteApiKeyButton.disabled = true;
+  void invoke("delete_ai_api_key")
+    .then(async () => {
+      aiApiKey.value = "";
+      await refreshApiKeyState();
+      showToast("API 密钥已删除");
+    })
+    .catch((error) => showToast(normalizeError(error)))
+    .finally(() => {
+      void refreshApiKeyState();
+    });
+});
+
+testProviderButton.addEventListener("click", () => {
+  readTranslationSettingsFromForm();
+  if (!IS_TAURI) {
+    providerTestStatus.textContent = "请在桌面应用中测试";
+    return;
+  }
+  testProviderButton.disabled = true;
+  testProviderButton.textContent = "测试中…";
+  providerTestStatus.textContent = "正在连接当前引擎…";
+  void invoke<string>("test_translation_provider", { options: translationOptions() })
+    .then((message) => {
+      providerTestStatus.textContent = message;
+      showToast("翻译引擎连接正常");
+    })
+    .catch((error) => {
+      const message = normalizeError(error);
+      providerTestStatus.textContent = message;
+      showToast(`测试失败：${message}`);
+    })
+    .finally(() => {
+      testProviderButton.disabled = false;
+      testProviderButton.textContent = "测试当前路线";
+      queueWindowFit();
+    });
 });
 
 shortcutRecorder.addEventListener("click", () => {
@@ -914,11 +1291,19 @@ document.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("online", () => {
-  if (sourceText.value.trim()) scheduleTranslation(100);
+  if (sourceText.value.trim() && translationSettings.mode !== "offline") {
+    scheduleTranslation(100);
+  }
 });
 
 window.addEventListener("offline", () => {
-  setStatus("error", "当前离线");
+  if (translationSettings.mode === "offline") {
+    setStatus("ready", "网络已断开 · 当前仍使用离线引擎");
+  } else if (translationSettings.mode === "smart") {
+    setStatus("ready", "网络已断开 · 短内容仍可离线翻译");
+  } else {
+    setStatus("error", "当前离线，请切换到离线模式");
+  }
   queueWindowFit();
 });
 
@@ -941,6 +1326,8 @@ if (previewMode && (previewTheme === "light" || previewTheme === "dark")) {
 }
 
 applyTheme(activeTheme, false);
+renderTranslationSettings();
+setSettingsTab("translation");
 autoUpdateToggle.checked = autoUpdateEnabled;
 updateComposerState();
 resetCards();
@@ -953,7 +1340,7 @@ if (previewMode && previewView === "settings") {
   setSettingsOpen(true);
   startupToggle.disabled = false;
   startupToggle.checked = true;
-  updateStatus.textContent = "V1.0.1 已是最新版本";
+  updateStatus.textContent = "V1.0.2 已是最新版本";
 } else if (previewMode) {
   sourceText.value = "bank";
   sourceLanguage.value = "en";
@@ -962,6 +1349,8 @@ if (previewMode && previewView === "settings") {
   renderResponse({
     detectedLanguage: "en",
     isSingleWord: true,
+    engineLabel: "内置词典 · OpenCC",
+    route: "offline",
     examples: [
       "I need to go to the bank this afternoon.",
       "They sat on the river bank and watched the water.",
@@ -969,12 +1358,12 @@ if (previewMode && previewView === "settings") {
     items: [
       {
         language: "zh-CN",
-        text: "银行；岸；库",
+        text: "银行；河岸",
         error: null,
         isOriginal: false,
         senses: [
-          { partOfSpeech: "noun", meanings: ["银行", "河岸", "库", "储备"] },
-          { partOfSpeech: "verb", meanings: ["把钱存入银行", "倾斜飞行", "堆积"] },
+          { partOfSpeech: "noun", meanings: ["银行", "河岸", "库；储备"] },
+          { partOfSpeech: "verb", meanings: ["把钱存入银行", "倾斜转弯", "堆积"] },
         ],
       },
       {
@@ -990,18 +1379,18 @@ if (previewMode && previewView === "settings") {
         error: null,
         isOriginal: false,
         senses: [
-          { partOfSpeech: "noun", meanings: ["銀行", "土手", "堤防", "貯蔵"] },
-          { partOfSpeech: "verb", meanings: ["預金する", "傾ける"] },
+          { partOfSpeech: "noun", meanings: ["銀行", "川岸・土手", "貯蔵"] },
+          { partOfSpeech: "verb", meanings: ["預金する", "傾ける", "積み上げる"] },
         ],
       },
       {
         language: "zh-TW",
-        text: "銀行；岸；庫",
+        text: "銀行；河岸",
         error: null,
         isOriginal: false,
         senses: [
-          { partOfSpeech: "noun", meanings: ["銀行", "河岸", "庫", "儲備"] },
-          { partOfSpeech: "verb", meanings: ["存款", "傾斜飛行", "堆積"] },
+          { partOfSpeech: "noun", meanings: ["銀行", "河岸", "庫；儲備"] },
+          { partOfSpeech: "verb", meanings: ["把錢存入銀行", "傾斜轉彎", "堆積"] },
         ],
       },
     ],

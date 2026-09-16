@@ -7,7 +7,11 @@ LinguaDock is built with open-source software. The primary runtime dependencies 
 - [Reqwest](https://github.com/seanmonstar/reqwest) — Apache-2.0 OR MIT
 - [Serde](https://github.com/serde-rs/serde) — Apache-2.0 OR MIT
 - [futures-rs](https://github.com/rust-lang/futures-rs) — Apache-2.0 OR MIT
+- [ferrous-opencc](https://github.com/apoint123/ferrous-opencc) — Apache-2.0
+- [keyring-rs](https://github.com/open-source-cooperative/keyring-rs) — Apache-2.0 OR MIT
 
 The development toolchain also uses TypeScript (Apache-2.0) and Vite (MIT).
 
-The full dependency graph and exact resolved versions are recorded in `package-lock.json` and `src-tauri/Cargo.lock`. Each dependency remains subject to its own license terms. Google Translate is a network service and is not distributed as part of this software.
+The full dependency graph and exact resolved versions are recorded in `package-lock.json` and `src-tauri/Cargo.lock`. Each dependency remains subject to its own license terms.
+
+Google Translate is a network service and is not distributed as part of this software. LibreTranslate, Argos Translate, Ollama, LM Studio, and all user-selected model files are optional external programs or services; LinguaDock does not redistribute them. Their own licenses and model terms apply when users install or run them.

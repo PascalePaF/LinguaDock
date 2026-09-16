@@ -47,9 +47,10 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
-          New-Item -ItemType Directory -Force -Path release, release/portable | Out-Null
+          New-Item -ItemType Directory -Force -Path release, release/portable, release/portable/docs | Out-Null
           Copy-Item src-tauri/target/release/linguadock.exe release/portable/LinguaDock.exe
           Copy-Item README.md, README_EN.md, CHANGELOG.md, LICENSE, THIRD_PARTY_NOTICES.md release/portable/
+          Copy-Item docs/offline-engines.md, docs/preview.png release/portable/docs/
           Compress-Archive -Path release/portable/* -DestinationPath release/LinguaDock_${version}_windows_x64_portable.zip
           $installer = Get-ChildItem src-tauri/target/release/bundle/nsis -Filter '*-setup.exe' | Select-Object -First 1
           if (-not $installer) { throw 'NSIS installer was not generated.' }
@@ -60,7 +61,7 @@ jobs:
           $releaseInstaller = Get-Item "release/$($installer.Name)"
           $latest = [ordered]@{
             version = $version
-            notes = '新增设置中心、自定义 2–5 键全局快捷键、开机自启，以及 GitHub 签名自动更新。'
+            notes = '新增四种离线引擎、智能分流、AI API、Windows 凭据安全存储、Enter 翻译，以及全局快捷键显示/隐藏切换。'
             pub_date = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
             platforms = [ordered]@{
               'windows-x86_64' = [ordered]@{
@@ -95,14 +96,20 @@ jobs:
           body: |
             ## LinguaDock ${{ github.ref_name }}
 
-            Windows x64 正式版：新增设置中心、自定义 2–5 键全局快捷键、开机自启，以及基于 GitHub Release 签名包的一键更新。
+            Windows x64 正式版：新增四种离线引擎、可调阈值的智能分流、Google / AI API 在线引擎，以及全新的“译栈 LinguaDock”视觉品牌。
+
+            - 内置词典 + OpenCC、LibreTranslate / Argos、Ollama、LM Studio
+            - AI API 密钥保存到 Windows 凭据管理器
+            - 默认 `Enter` 翻译、`Ctrl + Enter` 换行，也可交换
+            - 全局快捷键再次按下会隐藏窗口，后台继续运行
+            - V1.0.1 用户可在应用内直接安装此签名更新
 
             - 安装版：`LinguaDock_<版本>_x64-setup.exe`
             - 免安装版：`LinguaDock_<版本>_windows_x64_portable.zip`
             - 更新清单：`latest.json`（应用自动读取）
             - 校验文件：`SHA256SUMS.txt`
 
-            V1.0.0 尚未内置更新模块，因此需要手动安装 V1.0.1 一次；从 V1.0.1 起可在“设置 → 软件更新”中完成后续更新。
+            V1.0.0 尚未内置更新模块，因此需先手动安装 V1.0.1 或更高版本；从 V1.0.1 起可在“设置 → 更新”中完成后续升级。
 
             首次运行时若 Windows SmartScreen 提示“未知发布者”，请核对本 Release 的 SHA-256 校验值。本版本的应用更新包带有 Tauri 签名，但尚未使用商业 Windows Authenticode 代码签名证书。
           files: |

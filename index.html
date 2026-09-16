@@ -6,16 +6,21 @@
     <meta name="theme-color" content="#ffffff" />
     <meta
       name="description"
-      content="LinguaDock：简中、英语、日语与繁体中文四语 Google 翻译小窗"
+      content="译栈 LinguaDock：支持在线、离线、智能分流与 AI 接口的四语翻译小窗"
     />
-    <title>LinguaDock</title>
+    <title>译栈 LinguaDock</title>
   </head>
   <body>
     <main id="app" class="app-shell">
       <header id="titlebar" class="titlebar">
         <div class="brand">
-          <span class="brand-mark" aria-hidden="true">L</span>
-          <strong>LinguaDock</strong>
+          <span class="brand-mark" aria-hidden="true">
+            <img src="/src/assets/linguadock-mark.png" alt="" />
+          </span>
+          <span class="brand-copy">
+            <strong>译栈</strong>
+            <small>LinguaDock</small>
+          </span>
         </div>
 
         <div class="window-actions">
@@ -78,76 +83,219 @@
           <header class="settings-header">
             <div>
               <h1 id="settingsTitle">设置</h1>
-              <p>LinguaDock V<span id="currentVersion">1.0.1</span></p>
+              <p>译栈 LinguaDock V<span id="currentVersion">1.0.2</span></p>
             </div>
             <button id="settingsDoneButton" class="text-button settings-done" type="button">
               完成
             </button>
           </header>
 
+          <nav class="settings-tabs" aria-label="设置分类">
+            <button class="settings-tab is-active" type="button" data-settings-tab="translation">翻译</button>
+            <button class="settings-tab" type="button" data-settings-tab="general">通用</button>
+            <button class="settings-tab" type="button" data-settings-tab="update">更新</button>
+          </nav>
+
           <div class="settings-list">
-            <section class="setting-block shortcut-setting" aria-labelledby="shortcutTitle">
-              <div class="setting-copy">
-                <h2 id="shortcutTitle">唤出快捷键</h2>
-                <p>点击右侧后，同时按下 2–5 个按键</p>
-              </div>
-              <div class="shortcut-controls">
-                <button id="shortcutRecorder" class="shortcut-recorder" type="button">
-                  <span id="shortcutValue">Ctrl + Alt + G</span>
-                  <small id="shortcutHint">点击录制</small>
-                </button>
-                <button id="shortcutResetButton" class="compact-button" type="button">恢复默认</button>
-              </div>
-            </section>
+            <div class="settings-page" data-settings-page="translation">
+              <section class="setting-block setting-stack" aria-labelledby="modeTitle">
+                <div class="setting-row">
+                  <div class="setting-copy">
+                    <h2 id="modeTitle">翻译模式</h2>
+                    <p id="modeDescription">短内容优先离线，长内容自动在线</p>
+                  </div>
+                  <select id="translationMode" class="setting-select" aria-label="翻译模式">
+                    <option value="smart">智能</option>
+                    <option value="offline">仅离线</option>
+                    <option value="online">仅在线</option>
+                  </select>
+                </div>
 
-            <label class="setting-block toggle-setting" for="startupToggle">
-              <span class="setting-copy">
-                <strong>开机自启</strong>
-                <small>登录 Windows 后在托盘中安静启动</small>
-              </span>
-              <span class="switch-control">
-                <input id="startupToggle" type="checkbox" />
-                <span aria-hidden="true"></span>
-              </span>
-            </label>
+                <div id="smartSettings" class="nested-settings">
+                  <label class="field-row" for="smartThreshold">
+                    <span>离线字数上限</span>
+                    <span class="threshold-control">
+                      <input id="smartThresholdRange" type="range" min="1" max="200" value="40" />
+                      <input id="smartThreshold" class="number-input" type="number" min="1" max="500" value="40" />
+                      <small>字</small>
+                    </span>
+                  </label>
+                  <label class="inline-toggle" for="smartFallbackToggle">
+                    <span>
+                      <strong>离线不完整时在线接力</strong>
+                      <small>会将本次原文发送给选定的在线引擎</small>
+                    </span>
+                    <span class="switch-control">
+                      <input id="smartFallbackToggle" type="checkbox" checked />
+                      <span aria-hidden="true"></span>
+                    </span>
+                  </label>
+                </div>
+              </section>
 
-            <label class="setting-block toggle-setting" for="autoUpdateToggle">
-              <span class="setting-copy">
-                <strong>自动检查更新</strong>
-                <small>启动时检查，发现新版后可一键安装</small>
-              </span>
-              <span class="switch-control">
-                <input id="autoUpdateToggle" type="checkbox" />
-                <span aria-hidden="true"></span>
-              </span>
-            </label>
+              <section id="offlineEngineBlock" class="setting-block setting-stack" aria-labelledby="offlineTitle">
+                <div class="setting-row">
+                  <div class="setting-copy">
+                    <h2 id="offlineTitle">离线引擎</h2>
+                    <p id="offlineDescription">内置基础词典，零配置可用</p>
+                  </div>
+                  <select id="offlineEngine" class="setting-select wide-select" aria-label="离线翻译引擎">
+                    <option value="builtin">内置词典 · OpenCC</option>
+                    <option value="libretranslate">LibreTranslate · Argos</option>
+                    <option value="ollama">Ollama 本地 AI</option>
+                    <option value="lmstudio">LM Studio 本地 AI</option>
+                  </select>
+                </div>
+                <div id="offlineEngineFields" class="nested-settings provider-fields">
+                  <p id="builtinOfflineNote" class="provider-note">
+                    常用词、短语与完整简繁转换；未收录句子请选本地神经引擎。
+                  </p>
+                  <label class="field-group" data-offline-field="libretranslate" hidden>
+                    <span>本地服务地址</span>
+                    <input id="libreEndpoint" type="url" value="http://127.0.0.1:5000" spellcheck="false" />
+                  </label>
+                  <div class="field-grid" data-offline-field="ollama" hidden>
+                    <label class="field-group">
+                      <span>服务地址</span>
+                      <input id="ollamaEndpoint" type="url" value="http://127.0.0.1:11434" spellcheck="false" />
+                    </label>
+                    <label class="field-group">
+                      <span>模型</span>
+                      <input id="ollamaModel" type="text" value="qwen2.5:3b" spellcheck="false" />
+                    </label>
+                  </div>
+                  <div class="field-grid" data-offline-field="lmstudio" hidden>
+                    <label class="field-group">
+                      <span>服务地址</span>
+                      <input id="lmStudioEndpoint" type="url" value="http://127.0.0.1:1234/v1" spellcheck="false" />
+                    </label>
+                    <label class="field-group">
+                      <span>模型 ID</span>
+                      <input id="lmStudioModel" type="text" value="local-model" spellcheck="false" />
+                    </label>
+                  </div>
+                </div>
+              </section>
 
-            <section class="setting-block update-setting" aria-labelledby="updateTitle">
-              <div class="setting-copy">
-                <h2 id="updateTitle">软件更新</h2>
-                <p id="updateStatus">当前为最新版本</p>
+              <section id="onlineEngineBlock" class="setting-block setting-stack" aria-labelledby="onlineTitle">
+                <div class="setting-row">
+                  <div class="setting-copy">
+                    <h2 id="onlineTitle">在线引擎</h2>
+                    <p id="onlineDescription">Google 翻译，无需密钥</p>
+                  </div>
+                  <select id="onlineEngine" class="setting-select" aria-label="在线翻译引擎">
+                    <option value="google">Google 翻译</option>
+                    <option value="ai">AI API</option>
+                  </select>
+                </div>
+                <div id="aiFields" class="nested-settings provider-fields" hidden>
+                  <div class="field-grid">
+                    <label class="field-group">
+                      <span>OpenAI 兼容地址</span>
+                      <input id="aiEndpoint" type="url" value="https://api.openai.com/v1" spellcheck="false" />
+                    </label>
+                    <label class="field-group">
+                      <span>模型</span>
+                      <input id="aiModel" type="text" placeholder="填写模型名称" spellcheck="false" />
+                    </label>
+                  </div>
+                  <div class="api-key-row">
+                    <label class="field-group api-key-field">
+                      <span>API 密钥 <small id="apiKeyStatus">尚未保存</small></span>
+                      <input id="aiApiKey" type="password" placeholder="仅保存到 Windows 凭据管理器" autocomplete="off" />
+                    </label>
+                    <button id="saveApiKeyButton" class="compact-button" type="button">保存</button>
+                    <button id="deleteApiKeyButton" class="compact-button danger-button" type="button">删除</button>
+                  </div>
+                </div>
+              </section>
+
+              <div class="provider-test-row">
+                <span id="providerTestStatus">设置会自动保存</span>
+                <button id="testProviderButton" class="secondary-button" type="button">测试当前路线</button>
               </div>
-              <button id="updateButton" class="secondary-button" type="button">检查更新</button>
-              <div id="updateProgress" class="update-progress" role="progressbar" aria-label="更新下载进度" hidden>
-                <span id="updateProgressBar"></span>
-              </div>
-            </section>
+            </div>
+
+            <div class="settings-page" data-settings-page="general" hidden>
+              <section class="setting-block" aria-labelledby="enterBehaviorTitle">
+                <div class="setting-copy">
+                  <h2 id="enterBehaviorTitle">翻译按键</h2>
+                  <p id="enterBehaviorDescription">Enter 翻译，Ctrl + Enter 换行</p>
+                </div>
+                <select id="translationKey" class="setting-select wide-select" aria-label="翻译按键">
+                  <option value="enter">Enter 翻译</option>
+                  <option value="ctrl-enter">Ctrl + Enter 翻译</option>
+                </select>
+              </section>
+
+              <section class="setting-block shortcut-setting" aria-labelledby="shortcutTitle">
+                <div class="setting-copy">
+                  <h2 id="shortcutTitle">显示 / 隐藏快捷键</h2>
+                  <p>再次按下会隐藏窗口，程序继续驻留托盘</p>
+                </div>
+                <div class="shortcut-controls">
+                  <button id="shortcutRecorder" class="shortcut-recorder" type="button">
+                    <span id="shortcutValue">Ctrl + Alt + G</span>
+                    <small id="shortcutHint">点击录制 · 2–5 键</small>
+                  </button>
+                  <button id="shortcutResetButton" class="compact-button" type="button">恢复默认</button>
+                </div>
+              </section>
+
+              <label class="setting-block toggle-setting" for="startupToggle">
+                <span class="setting-copy">
+                  <strong>开机自启</strong>
+                  <small>登录 Windows 后在托盘中安静启动</small>
+                </span>
+                <span class="switch-control">
+                  <input id="startupToggle" type="checkbox" />
+                  <span aria-hidden="true"></span>
+                </span>
+              </label>
+            </div>
+
+            <div class="settings-page" data-settings-page="update" hidden>
+              <label class="setting-block toggle-setting" for="autoUpdateToggle">
+                <span class="setting-copy">
+                  <strong>自动检查更新</strong>
+                  <small>启动时通过 GitHub 检查，发现新版后可一键安装</small>
+                </span>
+                <span class="switch-control">
+                  <input id="autoUpdateToggle" type="checkbox" />
+                  <span aria-hidden="true"></span>
+                </span>
+              </label>
+
+              <section class="setting-block update-setting" aria-labelledby="updateTitle">
+                <div class="setting-copy">
+                  <h2 id="updateTitle">软件更新</h2>
+                  <p id="updateStatus">当前为最新版本</p>
+                </div>
+                <button id="updateButton" class="secondary-button" type="button">检查更新</button>
+                <div id="updateProgress" class="update-progress" role="progressbar" aria-label="更新下载进度" hidden>
+                  <span id="updateProgressBar"></span>
+                </div>
+              </section>
+            </div>
           </div>
         </section>
 
         <section id="composer" class="composer" aria-labelledby="composerLabel">
           <div class="composer-header">
             <label id="composerLabel" for="sourceText">原文</label>
-            <label class="source-mode" for="sourceLanguage">
-              <span class="sr-only">来源语言</span>
-              <select id="sourceLanguage" title="选择来源语言">
-                <option value="auto">自动识别</option>
-                <option value="zh-CN">简体中文</option>
-                <option value="en">English</option>
-                <option value="ja">日本語</option>
-                <option value="zh-TW">繁體中文</option>
-              </select>
-            </label>
+            <div class="composer-tools">
+              <span id="activeModeChip" class="mode-chip">智能</span>
+              <label class="source-mode" for="sourceLanguage">
+                <span class="sr-only">来源语言</span>
+                <select id="sourceLanguage" title="选择来源语言">
+                  <option value="auto">自动识别</option>
+                  <option value="zh-CN">简体中文</option>
+                  <option value="en">English</option>
+                  <option value="ja">日本語</option>
+                  <option value="zh-TW">繁體中文</option>
+                </select>
+              </label>
+            </div>
           </div>
 
           <textarea
@@ -167,7 +315,7 @@
               </button>
               <button id="translateButton" class="primary-button" type="button" disabled>
                 翻译
-                <kbd>Ctrl ↵</kbd>
+                <kbd id="translationKeyHint">↵</kbd>
               </button>
             </div>
           </div>

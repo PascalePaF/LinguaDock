@@ -1,18 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="译栈 LinguaDock 标志">
   <defs>
-    <linearGradient id="background" x1="64" y1="40" x2="448" y2="472" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#7779FF"/>
-      <stop offset="0.55" stop-color="#5153DB"/>
-      <stop offset="1" stop-color="#8D3DC4"/>
+    <linearGradient id="indigo" x1="80" y1="64" x2="250" y2="270" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7072FF"/>
+      <stop offset="1" stop-color="#4E50DA"/>
     </linearGradient>
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#27286E" flood-opacity="0.28"/>
-    </filter>
+    <linearGradient id="cyan" x1="80" y1="64" x2="250" y2="270" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4ED6E0"/>
+      <stop offset="1" stop-color="#25B8CA"/>
+    </linearGradient>
   </defs>
-  <rect x="34" y="34" width="444" height="444" rx="122" fill="url(#background)"/>
-  <g filter="url(#shadow)">
-    <path d="M144 129c0-18 15-33 33-33h158c18 0 33 15 33 33v188c0 18-15 33-33 33H231l-70 65 17-65h-1c-18 0-33-15-33-33V129Z" fill="white" fill-opacity="0.96"/>
-    <path d="M215 164h82M256 146v18c0 58-28 100-78 126M209 221c20 28 49 51 86 68" fill="none" stroke="#5759DE" stroke-width="25" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="m304 279 28-73 28 73M313 256h38" fill="none" stroke="#8B42C6" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <g>
+    <path d="M256 50 108 137c-18 11-29 30-29 51v88l77-45 67 39 33-19V50Z" fill="url(#indigo)"/>
+    <path d="M462 256 375 108c-11-18-30-29-51-29h-88l45 77-39 67 19 33h201Z" fill="url(#cyan)"/>
+    <path d="m256 462 148-87c18-11 29-30 29-51v-88l-77 45-67-39-33 19v201Z" fill="url(#indigo)"/>
+    <path d="M50 256 137 404c11 18 30 29 51 29h88l-45-77 39-67-19-33H50Z" fill="url(#cyan)"/>
   </g>
 </svg>
