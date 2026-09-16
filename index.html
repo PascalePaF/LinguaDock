@@ -20,6 +20,20 @@
 
         <div class="window-actions">
           <button
+            id="settingsButton"
+            class="icon-button settings-button"
+            type="button"
+            aria-label="打开设置"
+            title="设置"
+            aria-expanded="false"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.86 2.86-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.55v-.1A1.7 1.7 0 0 0 8.4 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.86-2.86.06-.06A1.7 1.7 0 0 0 4 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2V9.55h.3A1.7 1.7 0 0 0 4 8.4a1.7 1.7 0 0 0-.34-1.88l-.06-.06L6.46 3.6l.06.06A1.7 1.7 0 0 0 8.4 4a1.7 1.7 0 0 0 1-.6A1.7 1.7 0 0 0 9.8 2.3V2h4.05v.3A1.7 1.7 0 0 0 15 4a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.86 2.86-.06.06A1.7 1.7 0 0 0 19.4 8.4a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.3v4.05h-.3A1.7 1.7 0 0 0 19.4 15Z" />
+            </svg>
+            <span id="updateBadge" class="update-badge" aria-label="有可用更新" hidden></span>
+          </button>
+          <button
             id="themeButton"
             class="icon-button"
             type="button"
@@ -60,6 +74,67 @@
       </header>
 
       <section id="workspace" class="workspace">
+        <section id="settingsPanel" class="settings-panel" aria-labelledby="settingsTitle" hidden>
+          <header class="settings-header">
+            <div>
+              <h1 id="settingsTitle">设置</h1>
+              <p>LinguaDock V<span id="currentVersion">1.0.1</span></p>
+            </div>
+            <button id="settingsDoneButton" class="text-button settings-done" type="button">
+              完成
+            </button>
+          </header>
+
+          <div class="settings-list">
+            <section class="setting-block shortcut-setting" aria-labelledby="shortcutTitle">
+              <div class="setting-copy">
+                <h2 id="shortcutTitle">唤出快捷键</h2>
+                <p>点击右侧后，同时按下 2–5 个按键</p>
+              </div>
+              <div class="shortcut-controls">
+                <button id="shortcutRecorder" class="shortcut-recorder" type="button">
+                  <span id="shortcutValue">Ctrl + Alt + G</span>
+                  <small id="shortcutHint">点击录制</small>
+                </button>
+                <button id="shortcutResetButton" class="compact-button" type="button">恢复默认</button>
+              </div>
+            </section>
+
+            <label class="setting-block toggle-setting" for="startupToggle">
+              <span class="setting-copy">
+                <strong>开机自启</strong>
+                <small>登录 Windows 后在托盘中安静启动</small>
+              </span>
+              <span class="switch-control">
+                <input id="startupToggle" type="checkbox" />
+                <span aria-hidden="true"></span>
+              </span>
+            </label>
+
+            <label class="setting-block toggle-setting" for="autoUpdateToggle">
+              <span class="setting-copy">
+                <strong>自动检查更新</strong>
+                <small>启动时检查，发现新版后可一键安装</small>
+              </span>
+              <span class="switch-control">
+                <input id="autoUpdateToggle" type="checkbox" />
+                <span aria-hidden="true"></span>
+              </span>
+            </label>
+
+            <section class="setting-block update-setting" aria-labelledby="updateTitle">
+              <div class="setting-copy">
+                <h2 id="updateTitle">软件更新</h2>
+                <p id="updateStatus">当前为最新版本</p>
+              </div>
+              <button id="updateButton" class="secondary-button" type="button">检查更新</button>
+              <div id="updateProgress" class="update-progress" role="progressbar" aria-label="更新下载进度" hidden>
+                <span id="updateProgressBar"></span>
+              </div>
+            </section>
+          </div>
+        </section>
+
         <section id="composer" class="composer" aria-labelledby="composerLabel">
           <div class="composer-header">
             <label id="composerLabel" for="sourceText">原文</label>

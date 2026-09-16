@@ -84,7 +84,9 @@ select {
 button:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
-.result-card:focus-visible {
+.result-card:focus-visible,
+.shortcut-recorder:focus-visible,
+.toggle-setting:focus-within {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
@@ -150,6 +152,21 @@ textarea:focus-visible,
   align-items: center;
   gap: 4px;
   cursor: default;
+}
+
+.settings-button {
+  position: relative;
+}
+
+.update-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--danger);
 }
 
 .icon-button {
@@ -225,6 +242,244 @@ html[data-theme="dark"] .theme-icon-sun {
   overscroll-behavior: contain;
   scrollbar-color: var(--line) transparent;
   scrollbar-width: thin;
+}
+
+.workspace.is-settings-open > :not(.settings-panel) {
+  display: none !important;
+}
+
+.settings-panel {
+  display: flex;
+  min-height: 0;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 2px 2px 1px;
+}
+
+.settings-header h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 760;
+  letter-spacing: -0.025em;
+}
+
+.settings-header p {
+  margin: 3px 0 0;
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-done {
+  min-width: 58px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.settings-list {
+  display: grid;
+  gap: 10px;
+}
+
+.setting-block {
+  position: relative;
+  display: flex;
+  min-height: 74px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 15px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.setting-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.setting-copy h2,
+.setting-copy strong {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.setting-copy p,
+.setting-copy small {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 520;
+  line-height: 1.45;
+}
+
+.shortcut-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.shortcut-recorder {
+  display: flex;
+  min-width: 166px;
+  min-height: 48px;
+  align-items: flex-end;
+  justify-content: center;
+  flex-direction: column;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease;
+}
+
+.shortcut-recorder:hover,
+.shortcut-recorder.is-recording {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--line));
+  background: var(--accent-soft);
+}
+
+.shortcut-recorder span {
+  width: 100%;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 720;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shortcut-recorder small {
+  width: 100%;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.compact-button,
+.secondary-button {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 680;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.compact-button:hover,
+.secondary-button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.toggle-setting {
+  cursor: pointer;
+}
+
+.switch-control {
+  position: relative;
+  display: inline-flex;
+  width: 46px;
+  height: 26px;
+  flex: 0 0 auto;
+}
+
+.switch-control input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.switch-control span {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background 150ms ease;
+}
+
+.switch-control span::after {
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin: 3px;
+  transform: translateX(0);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgb(20 27 44 / 20%);
+  content: "";
+  transition: transform 150ms ease;
+}
+
+.switch-control input:checked + span {
+  background: var(--accent);
+}
+
+.switch-control input:checked + span::after {
+  transform: translateX(20px);
+}
+
+.switch-control input:disabled + span {
+  opacity: 0.5;
+}
+
+.update-setting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.update-setting .secondary-button {
+  min-width: 104px;
+}
+
+.update-progress {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line-soft);
+}
+
+.update-progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 120ms ease;
 }
 
 .composer {

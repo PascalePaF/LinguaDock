@@ -2,7 +2,7 @@
 
 一个极简、置顶、随叫随到的 Windows 四语翻译小窗。
 
-输入**简体中文、English、日本語或繁體中文**中的任意一种，LinguaDock 会自动识别来源语言，并同时给出四语对照。默认快捷键 `Ctrl + Alt + G` 可以在任何应用中唤出窗口。
+输入**简体中文、English、日本語或繁體中文**中的任意一种，LinguaDock 会自动识别来源语言，并同时给出四语对照。默认快捷键 `Ctrl + Alt + G` 可以在任何应用中唤出窗口，也可以在设置中改成 2–5 键组合。
 
 [English README](README_EN.md) · [下载最新版](https://github.com/PascalePaF/LinguaDock/releases/latest) · [相关项目调研](docs/related-projects.md)
 
@@ -14,7 +14,9 @@
 - 自动识别来源语言，也可以手动指定，解决只含通用汉字时的简繁歧义
 - 输入单词时展示 Google 返回的常见词性、多义项和简短用法
 - 输入后自动翻译；在输入框按 `Ctrl + Enter` 可立即翻译
-- `Ctrl + Alt + G` 全局快捷键唤出窗口；如已被占用，自动回退到 `Ctrl + Shift + G`
+- `Ctrl + Alt + G` 全局快捷键唤出窗口；设置中可录制 2–5 键自定义组合并检测占用冲突
+- 可选 Windows 开机自启，登录后静默进入托盘
+- 启动时自动检查更新，也可在设置中手动检查并一键下载安装 GitHub 签名更新
 - 真正无边框的小窗，拖动标题栏任意空白位置即可移动
 - 根据输入长度、译文长度和词典内容自动调整窗口宽高
 - 日间 / 夜间主题一键切换，并记住选择
@@ -29,9 +31,11 @@
 
 前往 [Releases](https://github.com/PascalePaF/LinguaDock/releases/latest)：
 
-- **安装版**：下载 `LinguaDock_1.0.0_x64-setup.exe`，按向导安装。
-- **免安装版**：下载 `LinguaDock_1.0.0_windows_x64_portable.zip`，解压后运行 `LinguaDock.exe`。
+- **安装版（推荐）**：下载 `LinguaDock_1.0.1_x64-setup.exe`，按向导安装。
+- **免安装版**：下载 `LinguaDock_1.0.1_windows_x64_portable.zip`，解压后运行 `LinguaDock.exe`。
 - `SHA256SUMS.txt` 提供发布文件校验值。
+
+> 从 V1.0.1 起，后续版本可以在“设置 → 软件更新”中直接更新，不需要再手动下载安装包。V1.0.0 尚未内置更新模块，因此升级到 V1.0.1 仍需手动安装这一次。免安装版移动位置后会使开机自启路径失效，长期使用建议选择安装版。
 
 系统要求：Windows 10/11 x64，且系统中有 Microsoft Edge WebView2 Runtime。Windows 11 通常已经自带；安装版会在缺失时下载 WebView2 引导程序。
 
@@ -49,6 +53,10 @@
 | 恢复窗口 | 单击托盘图标或再次按全局快捷键 |
 | 置顶/取消置顶 | 标题栏图钉按钮 |
 | 切换日间/夜间主题 | 标题栏主题按钮 |
+| 打开设置 | 标题栏齿轮按钮 |
+| 修改唤出快捷键 | 设置 → 唤出快捷键；同时按下 2–5 个按键 |
+| 开机自启 | 设置 → 开机自启 |
+| 检查或安装更新 | 设置 → 软件更新 |
 | 复制某种译文 | 点击对应结果卡内任意位置 |
 
 ## Google 翻译与隐私说明
@@ -89,6 +97,8 @@ npm run tauri -- build
 
 - 主程序：`src-tauri/target/release/linguadock.exe`
 - NSIS 安装包：`src-tauri/target/release/bundle/nsis/`
+
+正式发布构建还需要 Tauri 更新签名私钥。仓库的 GitHub Actions 从加密 Secrets 读取私钥并生成 `.sig` 与 `latest.json`；私钥不会提交到仓库。
 
 开发模式：
 

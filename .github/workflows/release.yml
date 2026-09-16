@@ -38,6 +38,9 @@ jobs:
         run: npm run check
 
       - name: Build Windows installer
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri -- build
 
       - name: Assemble installer and portable package
@@ -48,7 +51,26 @@ jobs:
           Copy-Item src-tauri/target/release/linguadock.exe release/portable/LinguaDock.exe
           Copy-Item README.md, README_EN.md, CHANGELOG.md, LICENSE, THIRD_PARTY_NOTICES.md release/portable/
           Compress-Archive -Path release/portable/* -DestinationPath release/LinguaDock_${version}_windows_x64_portable.zip
-          Copy-Item src-tauri/target/release/bundle/nsis/*-setup.exe release/
+          $installer = Get-ChildItem src-tauri/target/release/bundle/nsis -Filter '*-setup.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'NSIS installer was not generated.' }
+          $signatureFile = Get-Item "$($installer.FullName).sig"
+          Copy-Item $installer.FullName release/
+          Copy-Item $signatureFile.FullName release/
+
+          $releaseInstaller = Get-Item "release/$($installer.Name)"
+          $latest = [ordered]@{
+            version = $version
+            notes = '新增设置中心、自定义 2–5 键全局快捷键、开机自启，以及 GitHub 签名自动更新。'
+            pub_date = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            platforms = [ordered]@{
+              'windows-x86_64' = [ordered]@{
+                signature = (Get-Content $signatureFile.FullName -Raw).Trim()
+                url = "https://github.com/PascalePaF/LinguaDock/releases/download/${{ github.ref_name }}/$($releaseInstaller.Name)"
+              }
+            }
+          }
+          $latest | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 release/latest.json
+
           Get-ChildItem release -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
@@ -60,7 +82,9 @@ jobs:
           name: LinguaDock-windows-x64
           path: |
             release/*.exe
+            release/*.sig
             release/*.zip
+            release/latest.json
             release/SHA256SUMS.txt
 
       - name: Publish GitHub Release
@@ -71,14 +95,19 @@ jobs:
           body: |
             ## LinguaDock ${{ github.ref_name }}
 
-            Windows x64 正式版：无边框可拖动小窗、四语结果整卡复制、单词多义项与用法、内容自适应窗口，以及日间 / 夜间主题。
+            Windows x64 正式版：新增设置中心、自定义 2–5 键全局快捷键、开机自启，以及基于 GitHub Release 签名包的一键更新。
 
             - 安装版：`LinguaDock_<版本>_x64-setup.exe`
             - 免安装版：`LinguaDock_<版本>_windows_x64_portable.zip`
+            - 更新清单：`latest.json`（应用自动读取）
             - 校验文件：`SHA256SUMS.txt`
 
-            首次运行时若 Windows SmartScreen 提示“未知发布者”，请核对本 Release 的 SHA-256 校验值。本版本尚未使用商业代码签名证书。
+            V1.0.0 尚未内置更新模块，因此需要手动安装 V1.0.1 一次；从 V1.0.1 起可在“设置 → 软件更新”中完成后续更新。
+
+            首次运行时若 Windows SmartScreen 提示“未知发布者”，请核对本 Release 的 SHA-256 校验值。本版本的应用更新包带有 Tauri 签名，但尚未使用商业 Windows Authenticode 代码签名证书。
           files: |
             release/*.exe
+            release/*.sig
             release/*.zip
+            release/latest.json
             release/SHA256SUMS.txt

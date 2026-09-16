@@ -1,6 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
+import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
 import "./styles.css";
 
 type LanguageCode = "zh-CN" | "en" | "ja" | "zh-TW";
@@ -77,8 +80,23 @@ const characterCount = requiredElement<HTMLElement>("characterCount");
 const clearButton = requiredElement<HTMLButtonElement>("clearButton");
 const translateButton = requiredElement<HTMLButtonElement>("translateButton");
 const themeButton = requiredElement<HTMLButtonElement>("themeButton");
+const settingsButton = requiredElement<HTMLButtonElement>("settingsButton");
 const pinButton = requiredElement<HTMLButtonElement>("pinButton");
 const closeButton = requiredElement<HTMLButtonElement>("closeButton");
+const updateBadge = requiredElement<HTMLElement>("updateBadge");
+const settingsPanel = requiredElement<HTMLElement>("settingsPanel");
+const settingsDoneButton = requiredElement<HTMLButtonElement>("settingsDoneButton");
+const currentVersionElement = requiredElement<HTMLElement>("currentVersion");
+const shortcutRecorder = requiredElement<HTMLButtonElement>("shortcutRecorder");
+const shortcutValue = requiredElement<HTMLElement>("shortcutValue");
+const shortcutHint = requiredElement<HTMLElement>("shortcutHint");
+const shortcutResetButton = requiredElement<HTMLButtonElement>("shortcutResetButton");
+const startupToggle = requiredElement<HTMLInputElement>("startupToggle");
+const autoUpdateToggle = requiredElement<HTMLInputElement>("autoUpdateToggle");
+const updateStatus = requiredElement<HTMLElement>("updateStatus");
+const updateButton = requiredElement<HTMLButtonElement>("updateButton");
+const updateProgress = requiredElement<HTMLElement>("updateProgress");
+const updateProgressBar = requiredElement<HTMLElement>("updateProgressBar");
 const statusRow = requiredElement<HTMLElement>("statusRow");
 const statusText = requiredElement<HTMLElement>("statusText");
 const resultsPanel = requiredElement<HTMLElement>("resultsPanel");
@@ -101,7 +119,14 @@ let toastTimer: number | undefined;
 let fitTimer: number | undefined;
 let requestSequence = 0;
 let isComposing = false;
+let settingsOpen = false;
+let recordingShortcut = false;
 let isPinned = localStorage.getItem("linguadock.pinned") !== "false";
+let activeShortcut = "Ctrl+Alt+G";
+let pendingUpdate: Update | null = null;
+let checkingUpdate = false;
+let installingUpdate = false;
+let autoUpdateEnabled = localStorage.getItem("linguadock.autoUpdate") !== "false";
 let activeTheme: Theme =
   localStorage.getItem("linguadock.theme") === "dark" ||
   (localStorage.getItem("linguadock.theme") === null &&
@@ -115,7 +140,7 @@ const currentResults = new Map<LanguageCode, string>();
 function normalizeError(error: unknown): string {
   if (typeof error === "string") return error;
   if (error instanceof Error) return error.message;
-  return "翻译失败，请检查网络连接后重试";
+  return "操作失败，请稍后重试";
 }
 
 function setStatus(mode: StatusMode, message: string): void {
@@ -176,6 +201,7 @@ function visibleWorkspaceHeight(): number {
 }
 
 function desiredWindowWidth(): number {
+  if (settingsOpen) return 620;
   if (resultsPanel.hidden) {
     return sourceText.value.length > 240 ? 620 : 560;
   }
@@ -225,6 +251,249 @@ function queueWindowFit(delay = 40): void {
       void fitWindowToContent();
     });
   }, delay);
+}
+
+function formatShortcut(shortcut: string): string {
+  return shortcut.split("+").join(" + ");
+}
+
+function showActiveShortcut(shortcut: string): void {
+  activeShortcut = shortcut;
+  shortcutValue.textContent = formatShortcut(shortcut);
+  shortcutHint.textContent = "点击录制";
+}
+
+function stopShortcutRecording(restore = true): void {
+  recordingShortcut = false;
+  shortcutRecorder.classList.remove("is-recording");
+  shortcutRecorder.setAttribute("aria-pressed", "false");
+  if (restore) showActiveShortcut(activeShortcut);
+}
+
+function setSettingsOpen(open: boolean): void {
+  settingsOpen = open;
+  settingsPanel.hidden = !open;
+  workspace.classList.toggle("is-settings-open", open);
+  settingsButton.classList.toggle("is-active", open);
+  settingsButton.setAttribute("aria-expanded", String(open));
+  settingsButton.title = open ? "返回翻译" : "设置";
+  settingsButton.ariaLabel = settingsButton.title;
+  if (!open) {
+    stopShortcutRecording();
+    window.setTimeout(() => sourceText.focus(), 40);
+  } else {
+    void refreshAutostartState();
+    window.setTimeout(() => shortcutRecorder.focus(), 40);
+  }
+  lastRequestedSize = null;
+  queueWindowFit(0);
+}
+
+function shortcutFromKeyboardEvent(event: KeyboardEvent): string | null {
+  if (/^Key[A-Z]$/.test(event.code)) return event.code.slice(3);
+  if (/^Digit[0-9]$/.test(event.code)) return event.code.slice(5);
+  if (/^F(?:[1-9]|1[0-9]|2[0-4])$/.test(event.code)) return event.code;
+
+  const namedKeys: Record<string, string> = {
+    Space: "Space",
+    Tab: "Tab",
+    Enter: "Enter",
+    NumpadEnter: "Enter",
+    Backspace: "Backspace",
+    Delete: "Delete",
+    Insert: "Insert",
+    Home: "Home",
+    End: "End",
+    PageUp: "PageUp",
+    PageDown: "PageDown",
+    ArrowUp: "ArrowUp",
+    ArrowDown: "ArrowDown",
+    ArrowLeft: "ArrowLeft",
+    ArrowRight: "ArrowRight",
+  };
+  return namedKeys[event.code] ?? null;
+}
+
+async function applyShortcut(shortcut: string, persist: boolean, notify: boolean): Promise<void> {
+  if (!IS_TAURI) {
+    showActiveShortcut(shortcut);
+    return;
+  }
+
+  shortcutRecorder.disabled = true;
+  shortcutResetButton.disabled = true;
+  try {
+    const normalized = await invoke<string>("set_global_shortcut", { shortcut });
+    showActiveShortcut(normalized);
+    if (persist) localStorage.setItem("linguadock.shortcut", normalized);
+    if (notify) showToast(`唤出快捷键已设为 ${formatShortcut(normalized)}`);
+  } catch (error) {
+    showActiveShortcut(activeShortcut);
+    throw error;
+  } finally {
+    shortcutRecorder.disabled = false;
+    shortcutResetButton.disabled = false;
+  }
+}
+
+async function initializeShortcut(): Promise<void> {
+  if (!IS_TAURI) return;
+
+  try {
+    const runningShortcut = await invoke<string | null>("get_active_shortcut");
+    if (runningShortcut) showActiveShortcut(runningShortcut);
+
+    const preferredShortcut = localStorage.getItem("linguadock.shortcut");
+    if (preferredShortcut && preferredShortcut !== runningShortcut) {
+      try {
+        await applyShortcut(preferredShortcut, false, false);
+      } catch (error) {
+        localStorage.setItem("linguadock.shortcut", activeShortcut);
+        showToast(`自定义快捷键不可用：${normalizeError(error)}`);
+      }
+    } else if (!runningShortcut) {
+      shortcutValue.textContent = "未设置";
+      shortcutHint.textContent = "默认快捷键被占用";
+      showToast("全局快捷键被占用，请在设置中重新指定");
+    } else if (runningShortcut !== "Ctrl+Alt+G") {
+      showToast(`已改用 ${formatShortcut(runningShortcut)} 唤出窗口`);
+    }
+  } catch (error) {
+    console.warn("Unable to initialize global shortcut", error);
+  }
+}
+
+async function refreshAutostartState(): Promise<void> {
+  if (!IS_TAURI) {
+    startupToggle.disabled = true;
+    return;
+  }
+
+  startupToggle.disabled = true;
+  try {
+    startupToggle.checked = await isEnabled();
+  } catch (error) {
+    if (settingsOpen) showToast(`无法读取开机自启状态：${normalizeError(error)}`);
+  } finally {
+    startupToggle.disabled = false;
+  }
+}
+
+async function changeAutostart(enabled: boolean): Promise<void> {
+  startupToggle.disabled = true;
+  try {
+    if (enabled) {
+      await enable();
+    } else {
+      await disable();
+    }
+    startupToggle.checked = await isEnabled();
+    showToast(startupToggle.checked ? "已开启开机自启" : "已关闭开机自启");
+  } catch (error) {
+    startupToggle.checked = !enabled;
+    showToast(`设置失败：${normalizeError(error)}`);
+  } finally {
+    startupToggle.disabled = false;
+  }
+}
+
+function setUpdateProgress(value: number): void {
+  const percent = Math.max(0, Math.min(100, value));
+  updateProgressBar.style.width = `${percent}%`;
+  updateProgress.setAttribute("aria-valuenow", String(Math.round(percent)));
+}
+
+function renderPendingUpdate(update: Update): void {
+  updateBadge.hidden = false;
+  updateStatus.textContent = `V${update.version} 已发布，可直接更新`;
+  updateButton.textContent = `更新到 V${update.version}`;
+}
+
+async function checkForUpdates(notify: boolean): Promise<void> {
+  if (!IS_TAURI || checkingUpdate || installingUpdate) return;
+
+  checkingUpdate = true;
+  updateButton.disabled = true;
+  updateButton.textContent = "检查中…";
+  updateStatus.textContent = "正在连接 GitHub…";
+  try {
+    const update = await check({ timeout: 20_000 });
+    if (update) {
+      if (pendingUpdate && pendingUpdate !== update) {
+        void pendingUpdate.close().catch(() => undefined);
+      }
+      pendingUpdate = update;
+      renderPendingUpdate(update);
+      showToast(`发现新版本 V${update.version}`);
+    } else {
+      if (pendingUpdate) {
+        void pendingUpdate.close().catch(() => undefined);
+        pendingUpdate = null;
+      }
+      updateBadge.hidden = true;
+      updateStatus.textContent = `V${currentVersionElement.textContent} 已是最新版本`;
+      updateButton.textContent = "检查更新";
+      if (notify) showToast("当前已是最新版本");
+    }
+  } catch (error) {
+    updateStatus.textContent = notify ? "检查失败，请稍后重试" : "暂时无法检查更新";
+    updateButton.textContent = "重新检查";
+    if (notify) showToast(`检查更新失败：${normalizeError(error)}`);
+  } finally {
+    checkingUpdate = false;
+    updateButton.disabled = false;
+    queueWindowFit();
+  }
+}
+
+async function installPendingUpdate(): Promise<void> {
+  if (!pendingUpdate || installingUpdate) return;
+
+  installingUpdate = true;
+  updateButton.disabled = true;
+  updateButton.textContent = "正在下载…";
+  updateProgress.hidden = false;
+  setUpdateProgress(0);
+  let downloaded = 0;
+  let total = 0;
+
+  try {
+    await pendingUpdate.downloadAndInstall((event: DownloadEvent) => {
+      if (event.event === "Started") {
+        total = event.data.contentLength ?? 0;
+        updateStatus.textContent = "正在下载已签名的更新包…";
+        setUpdateProgress(total > 0 ? 0 : 12);
+      } else if (event.event === "Progress") {
+        downloaded += event.data.chunkLength;
+        if (total > 0) {
+          setUpdateProgress((downloaded / total) * 100);
+          updateStatus.textContent = `正在下载… ${Math.min(100, Math.round((downloaded / total) * 100))}%`;
+        } else {
+          setUpdateProgress(Math.min(88, 12 + downloaded / 200_000));
+        }
+      } else {
+        setUpdateProgress(100);
+        updateStatus.textContent = "下载完成，正在启动安装程序…";
+        updateButton.textContent = "正在安装…";
+      }
+    });
+  } catch (error) {
+    installingUpdate = false;
+    updateButton.disabled = false;
+    updateProgress.hidden = true;
+    renderPendingUpdate(pendingUpdate);
+    showToast(`更新失败：${normalizeError(error)}`);
+  }
+}
+
+async function initializeVersion(): Promise<void> {
+  if (!IS_TAURI) return;
+  try {
+    currentVersionElement.textContent = await getVersion();
+    updateStatus.textContent = `V${currentVersionElement.textContent} 已是最新版本`;
+  } catch (error) {
+    console.warn("Unable to read application version", error);
+  }
 }
 
 function resetCards(): void {
@@ -511,6 +780,52 @@ themeButton.addEventListener("click", () => {
   applyTheme(activeTheme === "light" ? "dark" : "light", true);
 });
 
+settingsButton.addEventListener("click", () => {
+  setSettingsOpen(!settingsOpen);
+});
+
+settingsDoneButton.addEventListener("click", () => {
+  setSettingsOpen(false);
+});
+
+shortcutRecorder.addEventListener("click", () => {
+  if (recordingShortcut) {
+    stopShortcutRecording();
+    return;
+  }
+  recordingShortcut = true;
+  shortcutRecorder.classList.add("is-recording");
+  shortcutRecorder.setAttribute("aria-pressed", "true");
+  shortcutValue.textContent = "请按组合键";
+  shortcutHint.textContent = "Esc 取消 · 2–5 个按键";
+});
+
+shortcutResetButton.addEventListener("click", () => {
+  stopShortcutRecording();
+  void applyShortcut("Ctrl+Alt+G", true, true).catch((error) => {
+    showToast(`恢复失败：${normalizeError(error)}`);
+  });
+});
+
+startupToggle.addEventListener("change", () => {
+  void changeAutostart(startupToggle.checked);
+});
+
+autoUpdateToggle.addEventListener("change", () => {
+  autoUpdateEnabled = autoUpdateToggle.checked;
+  localStorage.setItem("linguadock.autoUpdate", String(autoUpdateEnabled));
+  showToast(autoUpdateEnabled ? "已开启自动检查更新" : "已关闭自动检查更新");
+  if (autoUpdateEnabled) void checkForUpdates(false);
+});
+
+updateButton.addEventListener("click", () => {
+  if (pendingUpdate) {
+    void installPendingUpdate();
+  } else {
+    void checkForUpdates(true);
+  }
+});
+
 pinButton.addEventListener("click", () => {
   isPinned = !isPinned;
   void applyPinnedState(true);
@@ -546,10 +861,55 @@ cards.forEach(({ card }, language) => {
   });
 });
 
+window.addEventListener(
+  "keydown",
+  (event) => {
+    if (!recordingShortcut) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (event.repeat) return;
+
+    if (event.key === "Escape") {
+      stopShortcutRecording();
+      return;
+    }
+
+    const modifiers: string[] = [];
+    if (event.ctrlKey) modifiers.push("Ctrl");
+    if (event.altKey) modifiers.push("Alt");
+    if (event.shiftKey) modifiers.push("Shift");
+    if (event.metaKey) modifiers.push("Super");
+    const mainKey = shortcutFromKeyboardEvent(event);
+    const keys = mainKey ? [...modifiers, mainKey] : modifiers;
+
+    shortcutValue.textContent = keys.length > 0 ? keys.join(" + ") : "请按组合键";
+    if (!mainKey) {
+      shortcutHint.textContent = "继续按一个字母、数字或功能键";
+      return;
+    }
+    if (modifiers.length === 0) {
+      shortcutHint.textContent = "还需要 Ctrl、Alt、Shift 或 Win 键";
+      return;
+    }
+
+    const shortcut = [...modifiers, mainKey].join("+");
+    stopShortcutRecording(false);
+    shortcutHint.textContent = "正在保存…";
+    void applyShortcut(shortcut, true, true).catch((error) => {
+      showToast(normalizeError(error));
+    });
+  },
+  true,
+);
+
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     event.preventDefault();
-    void hideWindow();
+    if (settingsOpen) {
+      setSettingsOpen(false);
+    } else {
+      void hideWindow();
+    }
   }
 });
 
@@ -564,36 +924,37 @@ window.addEventListener("offline", () => {
 
 if (IS_TAURI) {
   void listen("focus-input", () => {
+    if (settingsOpen) setSettingsOpen(false);
     window.setTimeout(() => {
       sourceText.focus();
       sourceText.setSelectionRange(sourceText.value.length, sourceText.value.length);
     }, 40);
   });
-
-  void invoke<string | null>("get_active_shortcut")
-    .then((shortcut) => {
-      if (!shortcut) {
-        showToast("全局快捷键被占用");
-      } else if (shortcut !== "Ctrl+Alt+G") {
-        showToast(`已改用 ${shortcut} 唤出窗口`);
-      }
-    })
-    .catch(() => undefined);
 }
 
 const previewParameters = new URLSearchParams(window.location.search);
 const previewMode = !IS_TAURI && previewParameters.has("preview");
+const previewView = previewParameters.get("preview");
 const previewTheme = previewParameters.get("theme");
 if (previewMode && (previewTheme === "light" || previewTheme === "dark")) {
   activeTheme = previewTheme;
 }
 
 applyTheme(activeTheme, false);
+autoUpdateToggle.checked = autoUpdateEnabled;
 updateComposerState();
 resetCards();
 void applyPinnedState(false);
+void initializeVersion();
+void initializeShortcut();
+void refreshAutostartState();
 
-if (previewMode) {
+if (previewMode && previewView === "settings") {
+  setSettingsOpen(true);
+  startupToggle.disabled = false;
+  startupToggle.checked = true;
+  updateStatus.textContent = "V1.0.1 已是最新版本";
+} else if (previewMode) {
   sourceText.value = "bank";
   sourceLanguage.value = "en";
   updateComposerState();
@@ -647,4 +1008,8 @@ if (previewMode) {
   });
 }
 
-window.setTimeout(() => sourceText.focus(), 80);
+if (IS_TAURI && autoUpdateEnabled) {
+  window.setTimeout(() => void checkForUpdates(false), 1800);
+}
+
+if (!settingsOpen) window.setTimeout(() => sourceText.focus(), 80);
