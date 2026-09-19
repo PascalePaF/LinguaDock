@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#ffffff" />
     <meta
       name="description"
-      content="译栈 LinguaDock：支持在线、离线、智能分流与 AI 接口的四语翻译小窗"
+      content="译栈 LinguaDock：支持剪贴板、截图 OCR、在线、离线与 AI 接口的四语翻译小窗"
     />
     <title>译栈 LinguaDock</title>
   </head>
@@ -83,7 +83,7 @@
           <header class="settings-header">
             <div>
               <h1 id="settingsTitle">设置</h1>
-              <p>译栈 LinguaDock V<span id="currentVersion">1.0.3</span></p>
+              <p>译栈 LinguaDock V<span id="currentVersion">1.0.4</span></p>
             </div>
             <button id="settingsDoneButton" class="text-button settings-done" type="button">
               完成
@@ -264,6 +264,35 @@
                 </div>
               </section>
 
+              <section class="setting-block setting-stack" aria-labelledby="ocrEngineTitle">
+                <div class="setting-row">
+                  <div class="setting-copy">
+                    <h2 id="ocrEngineTitle">截图 OCR</h2>
+                    <p id="ocrEngineDescription">自动优先使用 PixPin，未安装时使用 Windows 本地 OCR</p>
+                  </div>
+                  <select id="ocrEngine" class="setting-select wide-select" aria-label="截图 OCR 引擎">
+                    <option value="auto">自动推荐</option>
+                    <option value="pixpin">PixPin OCR</option>
+                    <option value="windows">Windows 本地 OCR</option>
+                  </select>
+                </div>
+                <p id="ocrCapabilityStatus" class="provider-note">正在检测可用 OCR…</p>
+              </section>
+
+              <section class="setting-block shortcut-setting" aria-labelledby="screenshotShortcutTitle">
+                <div class="setting-copy">
+                  <h2 id="screenshotShortcutTitle">截图翻译快捷键</h2>
+                  <p>按下后框选屏幕文字，识别结果会自动回填并翻译</p>
+                </div>
+                <div class="shortcut-controls">
+                  <button id="screenshotShortcutRecorder" class="shortcut-recorder" type="button">
+                    <span id="screenshotShortcutValue">Ctrl + Alt + S</span>
+                    <small id="screenshotShortcutHint">点击录制 · 2–5 键</small>
+                  </button>
+                  <button id="screenshotShortcutResetButton" class="compact-button" type="button">恢复默认</button>
+                </div>
+              </section>
+
               <label class="setting-block toggle-setting" for="startupToggle">
                 <span class="setting-copy">
                   <strong>开机自启</strong>
@@ -347,6 +376,30 @@
                   <option value="zh-TW">繁體中文</option>
                 </select>
               </label>
+              <button
+                id="pasteButton"
+                class="composer-icon-button"
+                type="button"
+                aria-label="粘贴剪贴板并翻译"
+                title="粘贴剪贴板并翻译"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 5.5h6M9.5 3h5a1 1 0 0 1 1 1v3h-7V4a1 1 0 0 1 1-1Z" />
+                  <path d="M8.5 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1.5" />
+                </svg>
+              </button>
+              <button
+                id="screenshotButton"
+                class="composer-icon-button"
+                type="button"
+                aria-label="截图 OCR 翻译"
+                title="截图 OCR 翻译（Ctrl + Alt + S）"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 4H5a1 1 0 0 0-1 1v3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
+                  <path d="M9 9h6v6H9z" />
+                </svg>
+              </button>
             </div>
           </div>
 

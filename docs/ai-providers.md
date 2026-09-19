@@ -1,6 +1,6 @@
 # AI 翻译服务商指南
 
-LinguaDock V1.0.3 通过 OpenAI Chat Completions 兼容协议，一次请求生成简体中文、英语、日语和繁体中文四份结果。API 密钥按服务商分别保存到 Windows 凭据管理器，不会写入 WebView 本地存储、日志或仓库。
+LinguaDock V1.0.4 通过 OpenAI Chat Completions 兼容协议，一次请求生成简体中文、英语、日语和繁体中文四份结果。API 密钥按服务商分别保存到 Windows 凭据管理器，不会写入 WebView 本地存储、日志或仓库。
 
 价格与模型会变化。下表是 2026-09-19 查阅官方文档时的选择依据，实际使用前应再次检查服务商页面。
 
@@ -45,4 +45,3 @@ LinguaDock V1.0.3 通过 OpenAI Chat Completions 兼容协议，一次请求生�
 - 这能降低提示注入风险，但不能保证第三方模型永不偏离格式；解析失败时应用会显示错误，不会把模型输出当作代码执行。
 - 自定义地址会收到 API 密钥和待翻译文本。只填写你信任的 HTTPS 服务；本地 Ollama、LM Studio 和 LibreTranslate 则有单独的局域网地址限制。
 - 服务商的日志、数据保留、区域与合规政策由服务商决定，LinguaDock 无法替代其隐私条款。
-

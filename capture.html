@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10131a" />
+    <title>译栈 · 截图翻译</title>
+  </head>
+  <body>
+    <main id="captureSurface" class="capture-surface" aria-label="拖动选择需要识别的屏幕区域">
+      <img id="captureImage" alt="当前屏幕截图" draggable="false" />
+      <div id="selection" class="selection" hidden>
+        <span id="selectionSize"></span>
+      </div>
+      <div id="captureHint" class="capture-hint">
+        <strong>拖动框选文字</strong>
+        <span>Esc 或右键取消</span>
+      </div>
+      <div id="captureBusy" class="capture-busy" hidden>
+        <span class="capture-spinner" aria-hidden="true"></span>
+        正在本地识别…
+      </div>
+    </main>
+    <script type="module" src="/src/capture.ts"></script>
+  </body>
+</html>

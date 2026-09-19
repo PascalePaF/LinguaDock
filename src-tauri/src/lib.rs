@@ -1,18 +1,20 @@
 mod local_resources;
+mod ocr;
 mod translation;
 
-use std::sync::Mutex;
+use std::{str::FromStr, sync::Mutex};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, LogicalSize, Manager, State, WebviewWindow,
 };
 use tauri_plugin_autostart::MacosLauncher;
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 #[derive(Default)]
 struct RuntimeStatus {
     active_shortcut: Mutex<Option<String>>,
+    screenshot_shortcut: Mutex<Option<String>>,
 }
 
 fn normalize_shortcut(raw: &str) -> Result<String, String> {
@@ -95,13 +97,17 @@ fn normalize_shortcut(raw: &str) -> Result<String, String> {
     Ok(modifiers.join("+"))
 }
 
-fn show_main_window(app: &AppHandle) {
+pub(crate) fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
         let _ = window.emit("focus-input", ());
     }
+}
+
+fn request_screenshot_ocr(app: &AppHandle) {
+    let _ = app.emit("screenshot-ocr-requested", ());
 }
 
 fn toggle_main_window(app: &AppHandle) {
@@ -126,6 +132,11 @@ fn hide_main_window(window: WebviewWindow) -> Result<(), String> {
     window
         .hide()
         .map_err(|error| format!("无法隐藏窗口：{error}"))
+}
+
+#[tauri::command]
+fn show_main_window_command(app: AppHandle) {
+    show_main_window(&app);
 }
 
 #[tauri::command]
@@ -159,12 +170,53 @@ fn get_active_shortcut(status: State<'_, RuntimeStatus>) -> Option<String> {
 }
 
 #[tauri::command]
+fn get_screenshot_shortcut(status: State<'_, RuntimeStatus>) -> Option<String> {
+    status
+        .screenshot_shortcut
+        .lock()
+        .map(|shortcut| shortcut.clone())
+        .unwrap_or(None)
+}
+
+fn update_tray_tooltip(app: &AppHandle, status: &RuntimeStatus) {
+    let active_shortcut = status
+        .active_shortcut
+        .lock()
+        .ok()
+        .and_then(|shortcut| shortcut.clone());
+    let screenshot_shortcut = status
+        .screenshot_shortcut
+        .lock()
+        .ok()
+        .and_then(|shortcut| shortcut.clone());
+    let tooltip = match (active_shortcut.as_deref(), screenshot_shortcut.as_deref()) {
+        (Some(toggle), Some(screenshot)) => {
+            format!("译栈 LinguaDock · {toggle} · 截图 {screenshot}")
+        }
+        (Some(toggle), None) => format!("译栈 LinguaDock · {toggle}"),
+        (None, Some(screenshot)) => format!("译栈 LinguaDock · 截图 {screenshot}"),
+        (None, None) => "译栈 LinguaDock".to_string(),
+    };
+    if let Some(tray) = app.tray_by_id("linguadock-tray") {
+        let _ = tray.set_tooltip(Some(tooltip));
+    }
+}
+
+#[tauri::command]
 fn set_global_shortcut(
     app: AppHandle,
     status: State<'_, RuntimeStatus>,
     shortcut: String,
 ) -> Result<String, String> {
     let normalized = normalize_shortcut(&shortcut)?;
+    let screenshot_shortcut = status
+        .screenshot_shortcut
+        .lock()
+        .map_err(|_| "无法读取截图快捷键".to_string())?
+        .clone();
+    if screenshot_shortcut.as_deref() == Some(normalized.as_str()) {
+        return Err("这个组合键已经用于截图翻译".into());
+    }
     let previous = status
         .active_shortcut
         .lock()
@@ -189,16 +241,58 @@ fn set_global_shortcut(
     if let Ok(mut active) = status.active_shortcut.lock() {
         *active = Some(normalized.clone());
     }
-    if let Some(tray) = app.tray_by_id("linguadock-tray") {
-        let _ = tray.set_tooltip(Some(format!("译栈 LinguaDock · {normalized}")));
+    update_tray_tooltip(&app, status.inner());
+
+    Ok(normalized)
+}
+
+#[tauri::command]
+fn set_screenshot_shortcut(
+    app: AppHandle,
+    status: State<'_, RuntimeStatus>,
+    shortcut: String,
+) -> Result<String, String> {
+    let normalized = normalize_shortcut(&shortcut)?;
+    let active_shortcut = status
+        .active_shortcut
+        .lock()
+        .map_err(|_| "无法读取唤出快捷键".to_string())?
+        .clone();
+    if active_shortcut.as_deref() == Some(normalized.as_str()) {
+        return Err("这个组合键已经用于显示或隐藏窗口".into());
+    }
+    let previous = status
+        .screenshot_shortcut
+        .lock()
+        .map_err(|_| "无法读取当前截图快捷键".to_string())?
+        .clone();
+
+    if previous.as_deref() == Some(normalized.as_str()) {
+        return Ok(normalized);
     }
 
+    app.global_shortcut()
+        .register(normalized.as_str())
+        .map_err(|error| format!("截图快捷键不可用，可能已被其他软件占用：{error}"))?;
+
+    if let Some(previous) = previous.as_deref() {
+        if let Err(error) = app.global_shortcut().unregister(previous) {
+            let _ = app.global_shortcut().unregister(normalized.as_str());
+            return Err(format!("无法替换截图快捷键：{error}"));
+        }
+    }
+
+    if let Ok(mut active) = status.screenshot_shortcut.lock() {
+        *active = Some(normalized.clone());
+    }
+    update_tray_tooltip(&app, status.inner());
     Ok(normalized)
 }
 
 pub fn run() {
     tauri::Builder::default()
         .manage(RuntimeStatus::default())
+        .manage(ocr::CaptureState::default())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_main_window(app);
         }))
@@ -210,9 +304,21 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _shortcut, event| {
+                .with_handler(|app, shortcut, event| {
                     if event.state() == ShortcutState::Pressed {
-                        toggle_main_window(app);
+                        let screenshot_triggered = app
+                            .state::<RuntimeStatus>()
+                            .screenshot_shortcut
+                            .lock()
+                            .ok()
+                            .and_then(|registered| registered.clone())
+                            .and_then(|registered| Shortcut::from_str(&registered).ok())
+                            .is_some_and(|registered| &registered == shortcut);
+                        if screenshot_triggered {
+                            request_screenshot_ocr(app);
+                        } else {
+                            toggle_main_window(app);
+                        }
                     }
                 })
                 .build(),
@@ -228,21 +334,36 @@ pub fn run() {
                 *shortcut = active_shortcut.clone();
             }
 
+            let screenshot_shortcut = ["Ctrl+Alt+S", "Ctrl+Shift+S", "Ctrl+Alt+O"]
+                .into_iter()
+                .find(|shortcut| app.global_shortcut().register(*shortcut).is_ok())
+                .map(str::to_string);
+            if let Ok(mut shortcut) = app.state::<RuntimeStatus>().screenshot_shortcut.lock() {
+                *shortcut = screenshot_shortcut.clone();
+            }
+
             let toggle_item = MenuItem::with_id(app, "toggle", "显示 / 隐藏", true, None::<&str>)?;
+            let screenshot_item =
+                MenuItem::with_id(app, "screenshot", "截图翻译", true, None::<&str>)?;
             let quit_item =
                 MenuItem::with_id(app, "quit", "退出译栈 LinguaDock", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&toggle_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&toggle_item, &screenshot_item, &quit_item])?;
 
-            let tray_tooltip = active_shortcut
-                .as_deref()
-                .map(|shortcut| format!("译栈 LinguaDock · {shortcut}"))
-                .unwrap_or_else(|| "译栈 LinguaDock".to_string());
+            let tray_tooltip = match (active_shortcut.as_deref(), screenshot_shortcut.as_deref()) {
+                (Some(toggle), Some(screenshot)) => {
+                    format!("译栈 LinguaDock · {toggle} · 截图 {screenshot}")
+                }
+                (Some(toggle), None) => format!("译栈 LinguaDock · {toggle}"),
+                (None, Some(screenshot)) => format!("译栈 LinguaDock · 截图 {screenshot}"),
+                (None, None) => "译栈 LinguaDock".to_string(),
+            };
             let tray_builder = TrayIconBuilder::with_id("linguadock-tray")
                 .tooltip(tray_tooltip)
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "toggle" => toggle_main_window(app),
+                    "screenshot" => request_screenshot_ocr(app),
                     "quit" => app.exit(0),
                     _ => {}
                 })
@@ -287,12 +408,22 @@ pub fn run() {
             translation::has_ai_api_key,
             translation::delete_ai_api_key,
             local_resources::scan_local_dictionary_resources,
+            ocr::detect_ocr_capabilities,
+            ocr::clipboard_sequence_number,
+            ocr::start_pixpin_ocr,
+            ocr::start_builtin_capture,
+            ocr::get_capture_payload,
+            ocr::finish_builtin_capture,
+            ocr::cancel_builtin_capture,
             set_window_pinned,
             hide_main_window,
+            show_main_window_command,
             start_window_drag,
             resize_main_window,
             get_active_shortcut,
-            set_global_shortcut
+            get_screenshot_shortcut,
+            set_global_shortcut,
+            set_screenshot_shortcut
         ])
         .run(tauri::generate_context!())
         .expect("error while running LinguaDock");

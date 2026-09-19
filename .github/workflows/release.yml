@@ -50,7 +50,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path release, release/portable, release/portable/docs, release/portable/examples | Out-Null
           Copy-Item src-tauri/target/release/linguadock.exe release/portable/LinguaDock.exe
           Copy-Item README.md, README_EN.md, CHANGELOG.md, LICENSE, THIRD_PARTY_NOTICES.md release/portable/
-          Copy-Item docs/offline-engines.md, docs/dictionary-import.md, docs/ai-providers.md, docs/youdao-experience-study.md, docs/preview.png release/portable/docs/
+          Copy-Item docs/offline-engines.md, docs/dictionary-import.md, docs/ai-providers.md, docs/screenshot-ocr.md, docs/ocr-project-study.md, docs/youdao-experience-study.md, docs/related-projects.md, docs/preview.png release/portable/docs/
           Copy-Item examples/sample-dictionary.csv release/portable/examples/
           Compress-Archive -Path release/portable/* -DestinationPath release/LinguaDock_${version}_windows_x64_portable.zip
           $installer = Get-ChildItem src-tauri/target/release/bundle/nsis -Filter '*-setup.exe' | Select-Object -First 1
@@ -62,7 +62,7 @@ jobs:
           $releaseInstaller = Get-Item "release/$($installer.Name)"
           $latest = [ordered]@{
             version = $version
-            notes = '新增词库、收藏、历史、朗读与剪贴板快译，支持 DeepSeek、千问、OpenRouter、OpenAI 多服务商 AI 接口，并可只读检测本机有道离线资源。'
+            notes = '新增一键粘贴与全局快捷键截图翻译，支持自动选择 PixPin 或 Windows 本地 OCR、多显示器框选与自定义截图快捷键。'
             pub_date = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
             platforms = [ordered]@{
               'windows-x86_64' = [ordered]@{
@@ -97,14 +97,14 @@ jobs:
           body: |
             ## LinguaDock ${{ github.ref_name }}
 
-            Windows x64 正式版：把网易有道式的高频桌面翻译工作流收拢成一个无会员、无广告、无信息流的极简小窗。
+            Windows x64 正式版：在无会员、无广告、无信息流的极简四语小窗中加入剪贴板与截图 OCR 工作流。
 
-            - “翻译 / 词库 / 收藏 / 历史”四区工作台，以及朗读和全部复制
-            - CSV、TSV、JSON、XML、TXT、StarDict 和有道个人单词本导入
-            - DeepSeek、通义千问、OpenRouter、OpenAI 与自定义 AI 接口
-            - 每家服务商的密钥独立保存到 Windows 凭据管理器
-            - 可选唤出时读取剪贴板；历史仅在本机保存并可关闭
-            - 只读检测本机有道离线资源，不破解或重新分发专有词典
+            - 自动识别右侧新增粘贴按钮，读取剪贴板后立即翻译
+            - `Ctrl + Alt + S` 启动截图翻译，支持 2–5 键自定义组合与冲突检测
+            - 自动推荐、PixPin、Windows 本地 OCR 三种选择
+            - 内置多显示器框选、DPI 适配、Esc / 右键取消与 OCR 异常恢复
+            - Windows OCR 图片不上传，识别临时文件完成后立即删除
+            - 保留词库、收藏、历史、朗读、离线引擎和多家 AI API
             - V1.0.1 及更高版本可在应用内直接安装此签名更新
 
             - 安装版：`LinguaDock_<版本>_x64-setup.exe`

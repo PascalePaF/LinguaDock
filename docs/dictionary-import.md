@@ -1,6 +1,6 @@
 # 本地词库导入指南
 
-LinguaDock V1.0.3 的词库中心用于导入用户自己拥有或有权使用的词典。所有词条写入当前 Windows 用户的 WebView IndexedDB，不上传到 LinguaDock 服务器；本项目也没有词库中转服务。
+LinguaDock V1.0.4 的词库中心用于导入用户自己拥有或有权使用的词典。所有词条写入当前 Windows 用户的 WebView IndexedDB，不上传到 LinguaDock 服务器；本项目也没有词库中转服务。
 
 ## 支持格式
 

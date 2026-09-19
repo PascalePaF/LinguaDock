@@ -2,6 +2,25 @@
 
 本项目按 [Semantic Versioning](https://semver.org/) 记录版本变化。
 
+## [1.0.4] - 2026-09-19
+
+### 新增
+
+- 自动识别右侧的一键粘贴按钮：读取剪贴板、填入原文并立即翻译
+- `Ctrl + Alt + S` 全局截图翻译快捷键，可录制 2–5 个按键并检测与窗口快捷键冲突
+- “自动推荐 / PixPin / Windows 本地 OCR”三种截图 OCR 选择与能力检测
+- 内置多显示器区域截图层，支持 DPI 缩放、拖拽框选、尺寸提示、`Esc` / 右键取消
+- Windows 简中、英语、日语、繁中 OCR 候选识别和自动质量择优
+- 系统托盘“截图翻译”入口以及截图快捷键托盘提示
+
+### 改进
+
+- 内置截图只保存在内存及识别期间的临时 PNG，OCR 结束后立即删除
+- PixPin 使用官方公开的 `CopyOcrText` 脚本，按剪贴板序列号判断新识别结果，避免旧内容误触发
+- OCR 完成、失败、取消或工作线程异常时都会关闭选区并恢复主窗口
+- 保留显式粘贴与“唤出时读取剪贴板”两条独立路径，后者仍默认关闭
+- 同步更新截图 OCR 使用指南、开源项目与许可证调研、安装版和免安装版发布流程
+
 ## [1.0.3] - 2026-09-19
 
 ### 新增
@@ -85,6 +104,7 @@
 - 简体中文、英语、日语与繁体中文四语同步翻译
 - 自动语言识别、全局快捷键、窗口置顶、系统托盘与单实例运行
 
+[1.0.4]: https://github.com/PascalePaF/LinguaDock/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/PascalePaF/LinguaDock/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/PascalePaF/LinguaDock/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/PascalePaF/LinguaDock/compare/v1.0.0...v1.0.1

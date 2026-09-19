@@ -22,6 +22,7 @@ type TranslationMode = "smart" | "offline" | "online";
 type OfflineEngine = "builtin" | "libretranslate" | "ollama" | "lmstudio";
 type OnlineEngine = "google" | "ai";
 type TranslationKey = "enter" | "ctrl-enter";
+type OcrEngineChoice = "auto" | "pixpin" | "windows";
 type AiProvider = "deepseek" | "qwen" | "openrouter" | "openai" | "custom";
 type AiStyle = "natural" | "literal" | "concise" | "professional";
 type WorkspaceView = "translate" | "dictionary" | "wordbook" | "history";
@@ -93,6 +94,25 @@ interface LocalResourceReport {
   modelFiles: LocalResourceFile[];
   totalSizeBytes: number;
   notice: string;
+}
+
+interface OcrCapabilities {
+  pixpinDetected: boolean;
+  pixpinRunning: boolean;
+  pixpinPath: string | null;
+  windowsOcrAvailable: boolean;
+  windowsOcrLanguages: string[];
+}
+
+interface PixPinLaunch {
+  clipboardSequence: number;
+  executablePath: string;
+}
+
+interface OcrCompletion {
+  text: string;
+  engineLabel: string;
+  languageTag: string;
 }
 
 interface CardElements {
@@ -175,6 +195,8 @@ const sourceLanguage = requiredElement<HTMLSelectElement>("sourceLanguage");
 const characterCount = requiredElement<HTMLElement>("characterCount");
 const clearButton = requiredElement<HTMLButtonElement>("clearButton");
 const translateButton = requiredElement<HTMLButtonElement>("translateButton");
+const pasteButton = requiredElement<HTMLButtonElement>("pasteButton");
+const screenshotButton = requiredElement<HTMLButtonElement>("screenshotButton");
 const themeButton = requiredElement<HTMLButtonElement>("themeButton");
 const settingsButton = requiredElement<HTMLButtonElement>("settingsButton");
 const pinButton = requiredElement<HTMLButtonElement>("pinButton");
@@ -187,6 +209,17 @@ const shortcutRecorder = requiredElement<HTMLButtonElement>("shortcutRecorder");
 const shortcutValue = requiredElement<HTMLElement>("shortcutValue");
 const shortcutHint = requiredElement<HTMLElement>("shortcutHint");
 const shortcutResetButton = requiredElement<HTMLButtonElement>("shortcutResetButton");
+const screenshotShortcutRecorder = requiredElement<HTMLButtonElement>(
+  "screenshotShortcutRecorder",
+);
+const screenshotShortcutValue = requiredElement<HTMLElement>("screenshotShortcutValue");
+const screenshotShortcutHint = requiredElement<HTMLElement>("screenshotShortcutHint");
+const screenshotShortcutResetButton = requiredElement<HTMLButtonElement>(
+  "screenshotShortcutResetButton",
+);
+const ocrEngine = requiredElement<HTMLSelectElement>("ocrEngine");
+const ocrEngineDescription = requiredElement<HTMLElement>("ocrEngineDescription");
+const ocrCapabilityStatus = requiredElement<HTMLElement>("ocrCapabilityStatus");
 const startupToggle = requiredElement<HTMLInputElement>("startupToggle");
 const autoUpdateToggle = requiredElement<HTMLInputElement>("autoUpdateToggle");
 const updateStatus = requiredElement<HTMLElement>("updateStatus");
@@ -284,9 +317,10 @@ let requestSequence = 0;
 let isComposing = false;
 let settingsOpen = false;
 let activeWorkspaceView: WorkspaceView = "translate";
-let recordingShortcut = false;
+let recordingShortcut: "toggle" | "screenshot" | null = null;
 let isPinned = localStorage.getItem("linguadock.pinned") !== "false";
 let activeShortcut = "Ctrl+Alt+G";
+let activeScreenshotShortcut = "Ctrl+Alt+S";
 let pendingUpdate: Update | null = null;
 let checkingUpdate = false;
 let installingUpdate = false;
@@ -303,6 +337,12 @@ const currentResults = new Map<LanguageCode, string>();
 let lastTranslation: SavedTranslation | null = null;
 let clipboardOnOpenEnabled = localStorage.getItem("linguadock.clipboardOnOpen") === "true";
 let historyEnabled = localStorage.getItem("linguadock.historyEnabled") !== "false";
+let ocrEngineChoice = (localStorage.getItem("linguadock.ocrEngine") ?? "auto") as OcrEngineChoice;
+if (!["auto", "pixpin", "windows"].includes(ocrEngineChoice)) ocrEngineChoice = "auto";
+let ocrCapabilities: OcrCapabilities | null = null;
+let screenshotCaptureActive = false;
+let screenshotCaptureMode: "pixpin" | "windows" | null = null;
+let screenshotSessionToken = 0;
 
 function loadSavedTranslations(key: string): SavedTranslation[] {
   try {
@@ -973,11 +1013,24 @@ function showActiveShortcut(shortcut: string): void {
   shortcutHint.textContent = "点击录制";
 }
 
+function showActiveScreenshotShortcut(shortcut: string): void {
+  activeScreenshotShortcut = shortcut;
+  screenshotShortcutValue.textContent = formatShortcut(shortcut);
+  screenshotShortcutHint.textContent = "点击录制";
+  screenshotButton.title = `截图 OCR 翻译（${formatShortcut(shortcut)}）`;
+}
+
 function stopShortcutRecording(restore = true): void {
-  recordingShortcut = false;
+  const target = recordingShortcut;
+  recordingShortcut = null;
   shortcutRecorder.classList.remove("is-recording");
   shortcutRecorder.setAttribute("aria-pressed", "false");
-  if (restore) showActiveShortcut(activeShortcut);
+  screenshotShortcutRecorder.classList.remove("is-recording");
+  screenshotShortcutRecorder.setAttribute("aria-pressed", "false");
+  if (restore && target === "toggle") showActiveShortcut(activeShortcut);
+  if (restore && target === "screenshot") {
+    showActiveScreenshotShortcut(activeScreenshotShortcut);
+  }
 }
 
 function setSettingsOpen(open: boolean): void {
@@ -994,6 +1047,7 @@ function setSettingsOpen(open: boolean): void {
   } else {
     void refreshAutostartState();
     void refreshApiKeyState();
+    void refreshOcrCapabilities();
     window.setTimeout(() => settingsTabs.find((tab) => tab.classList.contains("is-active"))?.focus(), 40);
   }
   lastRequestedSize = null;
@@ -1047,6 +1101,32 @@ async function applyShortcut(shortcut: string, persist: boolean, notify: boolean
   }
 }
 
+async function applyScreenshotShortcut(
+  shortcut: string,
+  persist: boolean,
+  notify: boolean,
+): Promise<void> {
+  if (!IS_TAURI) {
+    showActiveScreenshotShortcut(shortcut);
+    return;
+  }
+
+  screenshotShortcutRecorder.disabled = true;
+  screenshotShortcutResetButton.disabled = true;
+  try {
+    const normalized = await invoke<string>("set_screenshot_shortcut", { shortcut });
+    showActiveScreenshotShortcut(normalized);
+    if (persist) localStorage.setItem("linguadock.screenshotShortcut", normalized);
+    if (notify) showToast(`截图快捷键已设为 ${formatShortcut(normalized)}`);
+  } catch (error) {
+    showActiveScreenshotShortcut(activeScreenshotShortcut);
+    throw error;
+  } finally {
+    screenshotShortcutRecorder.disabled = false;
+    screenshotShortcutResetButton.disabled = false;
+  }
+}
+
 async function initializeShortcut(): Promise<void> {
   if (!IS_TAURI) return;
 
@@ -1071,6 +1151,31 @@ async function initializeShortcut(): Promise<void> {
     }
   } catch (error) {
     console.warn("Unable to initialize global shortcut", error);
+  }
+}
+
+async function initializeScreenshotShortcut(): Promise<void> {
+  if (!IS_TAURI) return;
+
+  try {
+    const runningShortcut = await invoke<string | null>("get_screenshot_shortcut");
+    if (runningShortcut) showActiveScreenshotShortcut(runningShortcut);
+
+    const preferredShortcut = localStorage.getItem("linguadock.screenshotShortcut");
+    if (preferredShortcut && preferredShortcut !== runningShortcut) {
+      try {
+        await applyScreenshotShortcut(preferredShortcut, false, false);
+      } catch (error) {
+        localStorage.setItem("linguadock.screenshotShortcut", activeScreenshotShortcut);
+        showToast(`截图快捷键不可用：${normalizeError(error)}`);
+      }
+    } else if (!runningShortcut) {
+      screenshotShortcutValue.textContent = "未设置";
+      screenshotShortcutHint.textContent = "默认快捷键被占用";
+      showToast("截图快捷键被占用，请在设置中重新指定");
+    }
+  } catch (error) {
+    console.warn("Unable to initialize screenshot shortcut", error);
   }
 }
 
@@ -1558,6 +1663,183 @@ function exportWordbook(): void {
   showToast("收藏已导出");
 }
 
+function setScreenshotBusy(active: boolean, mode: "pixpin" | "windows" | null = null): void {
+  screenshotCaptureActive = active;
+  screenshotCaptureMode = active ? mode : null;
+  screenshotButton.classList.toggle("is-busy", active);
+  screenshotButton.setAttribute("aria-busy", String(active));
+}
+
+function applyCapturedText(value: string, origin: string): void {
+  const normalized = value.trim();
+  if (!normalized) {
+    showToast(`${origin}没有识别到文字`);
+    return;
+  }
+  const clipped = normalized.slice(0, 5000);
+  setSettingsOpen(false);
+  setWorkspaceView("translate", false);
+  sourceText.value = clipped;
+  sourceLanguage.value = "auto";
+  requestSequence += 1;
+  updateComposerState();
+  setStatus("loading", `${origin}已识别 ${clipped.length} 字 · 正在翻译…`);
+  void translateNow();
+  if (normalized.length > clipped.length) {
+    showToast(`识别结果超过 5000 字，已截取前 5000 字`);
+  }
+}
+
+async function pasteClipboardAndTranslate(): Promise<void> {
+  pasteButton.disabled = true;
+  try {
+    const value = IS_TAURI ? await readText() : await navigator.clipboard.readText();
+    if (!value.trim()) {
+      showToast("剪贴板里没有可翻译的文字");
+      return;
+    }
+    applyCapturedText(value, "剪贴板");
+  } catch (error) {
+    showToast(`无法读取剪贴板：${normalizeError(error)}`);
+  } finally {
+    pasteButton.disabled = false;
+  }
+}
+
+function renderOcrPreference(): void {
+  ocrEngine.value = ocrEngineChoice;
+  ocrEngineDescription.textContent =
+    ocrEngineChoice === "pixpin"
+      ? "调用本机 PixPin 框选并复制 OCR 文字"
+      : ocrEngineChoice === "windows"
+        ? "使用内置区域截图与 Windows 本地 OCR，不上传图片"
+        : "优先使用 PixPin，未检测到时自动改用 Windows 本地 OCR";
+}
+
+async function refreshOcrCapabilities(): Promise<OcrCapabilities | null> {
+  renderOcrPreference();
+  if (!IS_TAURI) {
+    ocrCapabilityStatus.textContent = "桌面版会自动检测 PixPin 与 Windows OCR 语言包";
+    return null;
+  }
+  try {
+    ocrCapabilities = await invoke<OcrCapabilities>("detect_ocr_capabilities");
+    const parts: string[] = [];
+    if (ocrCapabilities.pixpinDetected) {
+      parts.push(ocrCapabilities.pixpinRunning ? "PixPin 已运行" : "已检测 PixPin");
+    } else {
+      parts.push("未检测到 PixPin");
+    }
+    if (ocrCapabilities.windowsOcrAvailable) {
+      const languageSummary = ocrCapabilities.windowsOcrLanguages.slice(0, 4).join("、");
+      parts.push(`Windows OCR ${languageSummary || "可用"}`);
+    } else {
+      parts.push("Windows OCR 语言包不可用");
+    }
+    ocrCapabilityStatus.textContent = parts.join(" · ");
+    return ocrCapabilities;
+  } catch (error) {
+    ocrCapabilityStatus.textContent = `OCR 检测失败：${normalizeError(error)}`;
+    return null;
+  }
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function waitForPixPinClipboard(
+  initialSequence: number,
+  sessionToken: number,
+): Promise<string> {
+  const deadline = Date.now() + 75_000;
+  let previousSequence = initialSequence;
+  while (Date.now() < deadline) {
+    await delay(240);
+    if (sessionToken !== screenshotSessionToken || screenshotCaptureMode !== "pixpin") {
+      throw new Error("截图任务已取消");
+    }
+    const sequence = await invoke<number>("clipboard_sequence_number");
+    if (sequence === previousSequence) continue;
+    previousSequence = sequence;
+    try {
+      const value = (await readText()).trim();
+      if (value) return value;
+    } catch {
+      // PixPin may briefly update the clipboard before the text format is ready.
+    }
+  }
+  throw new Error("等待 PixPin OCR 超时；如果已经取消截图，可重新按截图快捷键再试一次");
+}
+
+async function cancelScreenshotTranslation(notify = true): Promise<void> {
+  if (!screenshotCaptureActive) return;
+  const mode = screenshotCaptureMode;
+  screenshotSessionToken += 1;
+  setScreenshotBusy(false);
+  try {
+    if (mode === "windows") {
+      await invoke("cancel_builtin_capture");
+    } else {
+      await invoke("show_main_window_command");
+    }
+  } catch (error) {
+    console.warn("Unable to cancel screenshot translation", error);
+  }
+  if (notify) showToast("已取消截图翻译");
+}
+
+async function requestScreenshotTranslation(): Promise<void> {
+  if (!IS_TAURI) {
+    showToast("请在 Windows 桌面版中使用截图翻译");
+    return;
+  }
+  if (screenshotCaptureActive) {
+    await cancelScreenshotTranslation();
+    return;
+  }
+
+  const capabilities = ocrCapabilities ?? (await refreshOcrCapabilities());
+  let engine: "pixpin" | "windows";
+  if (ocrEngineChoice === "pixpin") {
+    engine = "pixpin";
+  } else if (ocrEngineChoice === "windows") {
+    engine = "windows";
+  } else {
+    engine = capabilities?.pixpinDetected ? "pixpin" : "windows";
+  }
+
+  const sessionToken = ++screenshotSessionToken;
+  setScreenshotBusy(true, engine);
+  try {
+    if (engine === "windows") {
+      if (capabilities && !capabilities.windowsOcrAvailable) {
+        throw new Error("Windows OCR 语言包不可用，请安装语言 OCR 功能或改用 PixPin");
+      }
+      await invoke("start_builtin_capture", {
+        sourceHint: sourceLanguage.value as SourceChoice,
+      });
+      return;
+    }
+
+    const launch = await invoke<PixPinLaunch>("start_pixpin_ocr");
+    const text = await waitForPixPinClipboard(launch.clipboardSequence, sessionToken);
+    if (sessionToken !== screenshotSessionToken) return;
+    await invoke("show_main_window_command");
+    setScreenshotBusy(false);
+    applyCapturedText(text, "PixPin OCR");
+  } catch (error) {
+    if (sessionToken !== screenshotSessionToken) return;
+    setScreenshotBusy(false);
+    try {
+      await invoke("show_main_window_command");
+    } catch {
+      // The backend may already have restored the main window.
+    }
+    showToast(normalizeError(error));
+  }
+}
+
 async function readClipboardOnOpen(): Promise<void> {
   if (!clipboardOnOpenEnabled || !IS_TAURI) return;
   try {
@@ -1623,6 +1905,14 @@ translateButton.addEventListener("click", () => {
   void translateNow();
 });
 
+pasteButton.addEventListener("click", () => {
+  void pasteClipboardAndTranslate();
+});
+
+screenshotButton.addEventListener("click", () => {
+  void requestScreenshotTranslation();
+});
+
 themeButton.addEventListener("click", () => {
   applyTheme(activeTheme === "light" ? "dark" : "light", true);
 });
@@ -1656,6 +1946,19 @@ clipboardOnOpenToggle.addEventListener("change", () => {
   clipboardOnOpenEnabled = clipboardOnOpenToggle.checked;
   localStorage.setItem("linguadock.clipboardOnOpen", String(clipboardOnOpenEnabled));
   showToast(clipboardOnOpenEnabled ? "已开启剪贴板快速翻译" : "已关闭剪贴板快速翻译");
+});
+
+ocrEngine.addEventListener("change", () => {
+  ocrEngineChoice = ocrEngine.value as OcrEngineChoice;
+  localStorage.setItem("linguadock.ocrEngine", ocrEngineChoice);
+  renderOcrPreference();
+  showToast(
+    ocrEngineChoice === "auto"
+      ? "截图 OCR 已设为自动推荐"
+      : ocrEngineChoice === "pixpin"
+        ? "截图 OCR 已设为 PixPin"
+        : "截图 OCR 已设为 Windows 本地识别",
+  );
 });
 
 historyToggle.addEventListener("change", () => {
@@ -1877,11 +2180,12 @@ testProviderButton.addEventListener("click", () => {
 });
 
 shortcutRecorder.addEventListener("click", () => {
-  if (recordingShortcut) {
+  if (recordingShortcut === "toggle") {
     stopShortcutRecording();
     return;
   }
-  recordingShortcut = true;
+  if (recordingShortcut) stopShortcutRecording();
+  recordingShortcut = "toggle";
   shortcutRecorder.classList.add("is-recording");
   shortcutRecorder.setAttribute("aria-pressed", "true");
   shortcutValue.textContent = "请按组合键";
@@ -1891,6 +2195,26 @@ shortcutRecorder.addEventListener("click", () => {
 shortcutResetButton.addEventListener("click", () => {
   stopShortcutRecording();
   void applyShortcut("Ctrl+Alt+G", true, true).catch((error) => {
+    showToast(`恢复失败：${normalizeError(error)}`);
+  });
+});
+
+screenshotShortcutRecorder.addEventListener("click", () => {
+  if (recordingShortcut === "screenshot") {
+    stopShortcutRecording();
+    return;
+  }
+  if (recordingShortcut) stopShortcutRecording();
+  recordingShortcut = "screenshot";
+  screenshotShortcutRecorder.classList.add("is-recording");
+  screenshotShortcutRecorder.setAttribute("aria-pressed", "true");
+  screenshotShortcutValue.textContent = "请按组合键";
+  screenshotShortcutHint.textContent = "Esc 取消 · 2–5 个按键";
+});
+
+screenshotShortcutResetButton.addEventListener("click", () => {
+  stopShortcutRecording();
+  void applyScreenshotShortcut("Ctrl+Alt+S", true, true).catch((error) => {
     showToast(`恢复失败：${normalizeError(error)}`);
   });
 });
@@ -1953,6 +2277,9 @@ window.addEventListener(
   "keydown",
   (event) => {
     if (!recordingShortcut) return;
+    const target = recordingShortcut;
+    const valueElement = target === "toggle" ? shortcutValue : screenshotShortcutValue;
+    const hintElement = target === "toggle" ? shortcutHint : screenshotShortcutHint;
     event.preventDefault();
     event.stopImmediatePropagation();
     if (event.repeat) return;
@@ -1970,22 +2297,24 @@ window.addEventListener(
     const mainKey = shortcutFromKeyboardEvent(event);
     const keys = mainKey ? [...modifiers, mainKey] : modifiers;
 
-    shortcutValue.textContent = keys.length > 0 ? keys.join(" + ") : "请按组合键";
+    valueElement.textContent = keys.length > 0 ? keys.join(" + ") : "请按组合键";
     if (!mainKey) {
-      shortcutHint.textContent = "继续按一个字母、数字或功能键";
+      hintElement.textContent = "继续按一个字母、数字或功能键";
       return;
     }
     if (modifiers.length === 0) {
-      shortcutHint.textContent = "还需要 Ctrl、Alt、Shift 或 Win 键";
+      hintElement.textContent = "还需要 Ctrl、Alt、Shift 或 Win 键";
       return;
     }
 
     const shortcut = [...modifiers, mainKey].join("+");
     stopShortcutRecording(false);
-    shortcutHint.textContent = "正在保存…";
-    void applyShortcut(shortcut, true, true).catch((error) => {
-      showToast(normalizeError(error));
-    });
+    hintElement.textContent = "正在保存…";
+    const action =
+      target === "toggle"
+        ? applyShortcut(shortcut, true, true)
+        : applyScreenshotShortcut(shortcut, true, true);
+    void action.catch((error) => showToast(normalizeError(error)));
   },
   true,
 );
@@ -2024,11 +2353,32 @@ if (IS_TAURI) {
   void listen("focus-input", () => {
     if (settingsOpen) setSettingsOpen(false);
     setWorkspaceView("translate", false);
-    void readClipboardOnOpen();
+    if (!screenshotCaptureActive) void readClipboardOnOpen();
     window.setTimeout(() => {
       sourceText.focus();
       sourceText.setSelectionRange(sourceText.value.length, sourceText.value.length);
     }, 40);
+  });
+
+  void listen("screenshot-ocr-requested", () => {
+    void requestScreenshotTranslation();
+  });
+
+  void listen<OcrCompletion>("screenshot-ocr-complete", (event) => {
+    screenshotSessionToken += 1;
+    setScreenshotBusy(false);
+    applyCapturedText(event.payload.text, event.payload.engineLabel);
+  });
+
+  void listen<string>("screenshot-ocr-error", (event) => {
+    screenshotSessionToken += 1;
+    setScreenshotBusy(false);
+    showToast(event.payload);
+  });
+
+  void listen("screenshot-ocr-cancelled", () => {
+    screenshotSessionToken += 1;
+    setScreenshotBusy(false);
   });
 }
 
@@ -2042,6 +2392,7 @@ if (previewMode && (previewTheme === "light" || previewTheme === "dark")) {
 
 applyTheme(activeTheme, false);
 renderTranslationSettings();
+renderOcrPreference();
 setSettingsTab("translation");
 setWorkspaceView("translate", false);
 autoUpdateToggle.checked = autoUpdateEnabled;
@@ -2055,13 +2406,15 @@ void refreshDictionaryStats();
 void applyPinnedState(false);
 void initializeVersion();
 void initializeShortcut();
+void initializeScreenshotShortcut();
 void refreshAutostartState();
+void refreshOcrCapabilities();
 
 if (previewMode && previewView === "settings") {
   setSettingsOpen(true);
   startupToggle.disabled = false;
   startupToggle.checked = true;
-  updateStatus.textContent = "V1.0.3 已是最新版本";
+  updateStatus.textContent = "V1.0.4 已是最新版本";
 } else if (previewMode) {
   sourceText.value = "bank";
   sourceLanguage.value = "en";

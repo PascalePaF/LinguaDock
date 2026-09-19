@@ -1,0 +1,167 @@
+:root {
+  color: #ffffff;
+  background: #10131a;
+  font-family:
+    Inter, "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei",
+    "Yu Gothic UI", sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body,
+.capture-surface {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: #10131a;
+  cursor: crosshair;
+  user-select: none;
+}
+
+.capture-surface {
+  position: relative;
+  touch-action: none;
+}
+
+#captureImage {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  opacity: 0;
+  pointer-events: none;
+}
+
+html[data-ready="true"] #captureImage {
+  opacity: 1;
+}
+
+.capture-surface::after {
+  position: absolute;
+  inset: 0;
+  background: rgb(8 10 16 / 34%);
+  content: "";
+  pointer-events: none;
+}
+
+.selection {
+  position: absolute;
+  z-index: 2;
+  min-width: 1px;
+  min-height: 1px;
+  border: 2px solid #8b8cff;
+  background: transparent;
+  box-shadow:
+    0 0 0 9999px rgb(8 10 16 / 48%),
+    0 0 0 1px rgb(255 255 255 / 42%) inset,
+    0 8px 30px rgb(0 0 0 / 24%);
+  pointer-events: none;
+}
+
+.selection.is-processing {
+  border-color: #ffffff;
+  animation: selection-pulse 900ms ease-in-out infinite alternate;
+}
+
+.selection span {
+  position: absolute;
+  right: -2px;
+  bottom: -29px;
+  min-width: 78px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: rgb(20 23 34 / 92%);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 25%);
+  color: #f6f7ff;
+  font-size: 11px;
+  font-weight: 650;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.capture-hint,
+.capture-busy {
+  position: fixed;
+  top: 22px;
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  transform: translateX(-50%);
+  border: 1px solid rgb(255 255 255 / 13%);
+  border-radius: 12px;
+  background: rgb(19 22 32 / 88%);
+  box-shadow: 0 10px 32px rgb(0 0 0 / 28%);
+  backdrop-filter: blur(14px);
+  color: #ffffff;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.capture-hint.is-quiet {
+  opacity: 0.35;
+}
+
+.capture-hint strong {
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.capture-hint span {
+  color: rgb(255 255 255 / 63%);
+  font-size: 11px;
+  font-weight: 560;
+}
+
+.capture-busy {
+  font-size: 13px;
+  font-weight: 680;
+}
+
+.capture-spinner {
+  width: 17px;
+  height: 17px;
+  border: 2px solid rgb(255 255 255 / 24%);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 720ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes selection-pulse {
+  to {
+    opacity: 0.68;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

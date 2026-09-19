@@ -2,29 +2,28 @@
 
 LinguaDock (Chinese brand: **译栈**, “translation dock”) is a minimal, always-on-top Windows translation popup for four-way comparison between **Simplified Chinese, English, Japanese, and Traditional Chinese**.
 
-Type in any one of the four languages. LinguaDock detects the source and shows all four versions at once. V1.0.3 combines translation, imported offline dictionaries, favorites, local history, speech, and multiple AI providers in a small window without ads, memberships, or an account system. Press `Ctrl + Alt + G` from any application to show the window; press it again to hide it while the background tray process stays active.
+Type in any one of the four languages. LinguaDock detects the source and shows all four versions at once. V1.0.4 adds explicit clipboard translation and screen-region OCR while keeping translation, imported dictionaries, favorites, local history, speech, and multiple AI providers in a small window without ads, memberships, or accounts. Press `Ctrl + Alt + G` to show or hide the window, or `Ctrl + Alt + S` to start screenshot translation.
 
-[Download the latest release](https://github.com/PascalePaF/LinguaDock/releases/latest) · [中文说明](README.md) · [Dictionary import](docs/dictionary-import.md) · [AI providers](docs/ai-providers.md) · [Youdao workflow study](docs/youdao-experience-study.md)
+[Download the latest release](https://github.com/PascalePaF/LinguaDock/releases/latest) · [中文说明](README.md) · [Screenshot OCR](docs/screenshot-ocr.md) · [Dictionary import](docs/dictionary-import.md) · [AI providers](docs/ai-providers.md) · [OCR project study](docs/ocr-project-study.md)
 
-![LinguaDock V1.0.3 preview](docs/preview.png)
+![LinguaDock V1.0.4 preview](docs/preview.png)
 
-## V1.0.3 highlights
+## V1.0.4 highlights
 
-- Original four-section workspace: **Translate, Dictionary, Favorites, and History**
-- Import CSV, TSV, JSON, XML, TXT, uncompressed StarDict, and user-exported Youdao wordbook XML files
-- Exact imported-dictionary matches appear beneath single-word translations; the Dictionary page provides offline prefix search
-- One-click favorites, copy-all, and system text-to-speech; optional local history keeps at most 80 entries
-- Optional “read clipboard when shown” workflow for copy → hotkey → translate
-- Presets for DeepSeek, Alibaba Qwen, OpenRouter, OpenAI, and custom OpenAI-compatible providers
-- Natural, literal, concise, and professional AI translation styles, with model and token usage shown in the status line
-- Separate Windows Credential Manager key slots for each AI provider
-- Read-only detection of installed Youdao resources with a clear compatibility report; proprietary dictionary and model files are never decrypted, copied, or redistributed
-- All V1.0.2 smart/offline/online routing, local engines, adaptive sizing, and signed updates remain available
+- A paste icon beside source-language detection reads the current clipboard and translates it immediately
+- `Ctrl + Alt + S` starts region OCR; both global shortcuts can be recorded as 2–5 key combinations with conflict checks
+- Choose **Automatic, PixPin, or Windows OCR**; Automatic prefers an installed PixPin and otherwise uses LinguaDock's built-in selector
+- The built-in path supports multiple monitors, DPI scaling, drag selection, and Escape/right-click cancellation
+- Windows OCR tries installed Simplified Chinese, English, Japanese, and Traditional Chinese recognizers according to the source hint
+- Built-in capture stays on the device; the screenshot is kept in memory plus one temporary PNG that is deleted after OCR
+- All V1.0.3 dictionary, favorites, history, AI-provider, offline-routing, and signed-update features remain available
 
 ## Other features
 
 - Four simultaneous results: Simplified Chinese, English, Japanese, and Traditional Chinese
 - Automatic source detection with an optional manual override
+- Explicit one-click paste-and-translate and optional clipboard-on-show workflows
+- Screenshot translation from the composer, tray menu, or a configurable global shortcut
 - Parts of speech, concise meanings, and usage examples for supported single-word results
 - Automatic translation after a short typing pause
 - Custom 2–5 key global shortcut recording with conflict detection
@@ -42,11 +41,11 @@ Type in any one of the four languages. LinguaDock detects the source and shows a
 
 Get the Windows x64 packages from [Releases](https://github.com/PascalePaF/LinguaDock/releases/latest):
 
-- `LinguaDock_1.0.3_x64-setup.exe` — NSIS installer (recommended)
-- `LinguaDock_1.0.3_windows_x64_portable.zip` — extract and run `LinguaDock.exe`
+- `LinguaDock_1.0.4_x64-setup.exe` — NSIS installer (recommended)
+- `LinguaDock_1.0.4_windows_x64_portable.zip` — extract and run `LinguaDock.exe`
 - `SHA256SUMS.txt` — published checksums
 
-V1.0.1 and later can install V1.0.3 directly from **Settings → Update**. Moving the portable executable invalidates its saved autostart path, so the installer is recommended for regular use.
+V1.0.1 and later can install V1.0.4 directly from **Settings → Update**. Moving the portable executable invalidates its saved autostart path, so the installer is recommended for regular use.
 
 The public build is not commercially Authenticode-signed, so Windows SmartScreen may identify it as an unknown publisher. Download only from this repository and verify the SHA-256 checksums. In-app update packages are independently verified with Tauri’s updater signature.
 
@@ -58,6 +57,10 @@ The public build is not commercially Authenticode-signed, so Windows SmartScreen
 | Translate now | `Enter` |
 | Insert a newline | `Ctrl + Enter` or `Shift + Enter` |
 | Swap Enter behavior | Settings → General → Translation key |
+| Paste and translate | Click the clipboard icon beside source-language detection |
+| Start screenshot translation | `Ctrl + Alt + S`, the capture icon, or the tray menu |
+| Cancel built-in capture | `Escape`, right-click, or trigger the screenshot shortcut again |
+| Choose the OCR engine | Settings → General → Screenshot OCR |
 | Hide to tray | `Esc` or the title-bar close button |
 | Copy a result | Click anywhere on its result card |
 
@@ -67,7 +70,9 @@ Offline-only mode never calls an online provider. Local service URLs are restric
 
 Google mode sends submitted text and language codes to `translate.googleapis.com`. It uses a keyless endpoint used by the web client, not the supported, SLA-backed Google Cloud Translation API. AI API mode sends the text to the selected provider or user-configured endpoint. Each provider secret is stored separately in Windows Credential Manager. Imported dictionaries use local IndexedDB; local history can be disabled and cleared at any time.
 
-See the [offline engine guide](docs/offline-engines.md) for setup requirements, trade-offs, and troubleshooting.
+Built-in Windows screenshot OCR does not upload the image. Captures live in memory and one short-lived temporary PNG, deleted as soon as OCR finishes. When PixPin is selected, LinguaDock invokes PixPin's documented script and reads only the recognized clipboard text; PixPin remains a separate user-installed application governed by its own settings and terms. After OCR, whether recognized text is sent online depends on the translation route selected by the user.
+
+See the [screenshot OCR guide](docs/screenshot-ocr.md) and [offline engine guide](docs/offline-engines.md) for setup requirements, privacy details, and troubleshooting.
 
 ## Build from source
 
