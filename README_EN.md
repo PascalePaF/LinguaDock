@@ -2,27 +2,24 @@
 
 LinguaDock (Chinese brand: **译栈**, “translation dock”) is a minimal, always-on-top Windows translation popup for four-way comparison between **Simplified Chinese, English, Japanese, and Traditional Chinese**.
 
-Type in any one of the four languages. LinguaDock detects the source and shows all four versions at once. V1.0.2 adds offline translation, smart offline/online routing, and a custom AI API. Press `Ctrl + Alt + G` from any application to show the window; press it again to hide the window while the background tray process stays active.
+Type in any one of the four languages. LinguaDock detects the source and shows all four versions at once. V1.0.3 combines translation, imported offline dictionaries, favorites, local history, speech, and multiple AI providers in a small window without ads, memberships, or an account system. Press `Ctrl + Alt + G` from any application to show the window; press it again to hide it while the background tray process stays active.
 
-[Download the latest release](https://github.com/PascalePaF/LinguaDock/releases/latest) · [中文说明](README.md) · [Offline engine guide](docs/offline-engines.md) · [Related-project research](docs/related-projects.md)
+[Download the latest release](https://github.com/PascalePaF/LinguaDock/releases/latest) · [中文说明](README.md) · [Dictionary import](docs/dictionary-import.md) · [AI providers](docs/ai-providers.md) · [Youdao workflow study](docs/youdao-experience-study.md)
 
-![LinguaDock V1.0.2 preview](docs/preview.png)
+![LinguaDock V1.0.3 preview](docs/preview.png)
 
-## V1.0.2 highlights
+## V1.0.3 highlights
 
-- **Smart, offline-only, and online-only** routing modes
-- Four selectable offline engines:
-  - bundled basic dictionary plus OpenCC for zero-setup words, phrases, and full Simplified/Traditional conversion
-  - a local LibreTranslate server powered by Argos Translate
-  - a local Ollama model
-  - a locally loaded LM Studio model
-- Configurable smart threshold: text at or below the limit stays offline; longer text uses the selected online engine
-- Explicit, optional online fallback when an offline result is incomplete
-- Google Translate or a custom OpenAI-compatible AI endpoint for online translation
-- AI API keys stored in Windows Credential Manager, never in `localStorage` or a plain settings file
-- `Enter` translates and `Ctrl + Enter` inserts a newline by default; the behavior can be swapped
-- The global hotkey now toggles the window instead of only showing it
-- New original “four conversation panes” visual identity while retaining the existing installer and updater identity
+- Original four-section workspace: **Translate, Dictionary, Favorites, and History**
+- Import CSV, TSV, JSON, XML, TXT, uncompressed StarDict, and user-exported Youdao wordbook XML files
+- Exact imported-dictionary matches appear beneath single-word translations; the Dictionary page provides offline prefix search
+- One-click favorites, copy-all, and system text-to-speech; optional local history keeps at most 80 entries
+- Optional “read clipboard when shown” workflow for copy → hotkey → translate
+- Presets for DeepSeek, Alibaba Qwen, OpenRouter, OpenAI, and custom OpenAI-compatible providers
+- Natural, literal, concise, and professional AI translation styles, with model and token usage shown in the status line
+- Separate Windows Credential Manager key slots for each AI provider
+- Read-only detection of installed Youdao resources with a clear compatibility report; proprietary dictionary and model files are never decrypted, copied, or redistributed
+- All V1.0.2 smart/offline/online routing, local engines, adaptive sizing, and signed updates remain available
 
 ## Other features
 
@@ -36,19 +33,20 @@ Type in any one of the four languages. LinguaDock detects the source and shows a
 - Frameless draggable window that adapts its dimensions to the content
 - Persistent light and dark themes
 - Click anywhere on a result card to copy its translation and meanings
+- Local dictionary center, favorites, and optional on-device history
 - Always-on-top toggle, system tray, and single-instance behavior
 - Installer and portable Windows builds
-- No translation history, telemetry, ads, accounts, or project-owned relay server
+- No telemetry, ads, memberships, accounts, or project-owned relay server
 
 ## Download
 
 Get the Windows x64 packages from [Releases](https://github.com/PascalePaF/LinguaDock/releases/latest):
 
-- `LinguaDock_1.0.2_x64-setup.exe` — NSIS installer (recommended)
-- `LinguaDock_1.0.2_windows_x64_portable.zip` — extract and run `LinguaDock.exe`
+- `LinguaDock_1.0.3_x64-setup.exe` — NSIS installer (recommended)
+- `LinguaDock_1.0.3_windows_x64_portable.zip` — extract and run `LinguaDock.exe`
 - `SHA256SUMS.txt` — published checksums
 
-V1.0.1 and later can install V1.0.2 directly from **Settings → Update**. Moving the portable executable invalidates its saved autostart path, so the installer is recommended for regular use.
+V1.0.1 and later can install V1.0.3 directly from **Settings → Update**. Moving the portable executable invalidates its saved autostart path, so the installer is recommended for regular use.
 
 The public build is not commercially Authenticode-signed, so Windows SmartScreen may identify it as an unknown publisher. Download only from this repository and verify the SHA-256 checksums. In-app update packages are independently verified with Tauri’s updater signature.
 
@@ -67,7 +65,7 @@ The public build is not commercially Authenticode-signed, so Windows SmartScreen
 
 Offline-only mode never calls an online provider. Local service URLs are restricted to loopback addresses, private-network IPs, and `.local` hosts. Smart mode routes by character count and only uses online fallback when the visible fallback option is enabled.
 
-Google mode sends submitted text and language codes to `translate.googleapis.com`. It uses a keyless endpoint used by the web client, not the supported, SLA-backed Google Cloud Translation API. AI API mode sends the text to the endpoint configured by the user. The API secret is stored in Windows Credential Manager.
+Google mode sends submitted text and language codes to `translate.googleapis.com`. It uses a keyless endpoint used by the web client, not the supported, SLA-backed Google Cloud Translation API. AI API mode sends the text to the selected provider or user-configured endpoint. Each provider secret is stored separately in Windows Credential Manager. Imported dictionaries use local IndexedDB; local history can be disabled and cleared at any time.
 
 See the [offline engine guide](docs/offline-engines.md) for setup requirements, trade-offs, and troubleshooting.
 

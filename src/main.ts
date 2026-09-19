@@ -2,8 +2,16 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
+import {
+  clearImportedDictionaries,
+  dictionaryStats,
+  importDictionaryFiles,
+  lookupDictionary,
+  searchDictionary,
+  type ImportedDictionaryEntry,
+} from "./library";
 import "./styles.css";
 
 type LanguageCode = "zh-CN" | "en" | "ja" | "zh-TW";
@@ -14,6 +22,9 @@ type TranslationMode = "smart" | "offline" | "online";
 type OfflineEngine = "builtin" | "libretranslate" | "ollama" | "lmstudio";
 type OnlineEngine = "google" | "ai";
 type TranslationKey = "enter" | "ctrl-enter";
+type AiProvider = "deepseek" | "qwen" | "openrouter" | "openai" | "custom";
+type AiStyle = "natural" | "literal" | "concise" | "professional";
+type WorkspaceView = "translate" | "dictionary" | "wordbook" | "history";
 
 interface DictionarySense {
   partOfSpeech: string;
@@ -35,6 +46,9 @@ interface TranslationResponse {
   items: TranslationItem[];
   engineLabel: string;
   route: "offline" | "online" | "online-fallback";
+  providerModel?: string | null;
+  promptTokens?: number | null;
+  completionTokens?: number | null;
 }
 
 interface TranslationSettings {
@@ -50,7 +64,35 @@ interface TranslationSettings {
   lmStudioModel: string;
   aiEndpoint: string;
   aiModel: string;
+  aiProvider: AiProvider;
+  aiStyle: AiStyle;
   translationKey: TranslationKey;
+}
+
+interface SavedTranslation {
+  id: string;
+  sourceText: string;
+  sourceLanguage: SourceChoice;
+  detectedLanguage: LanguageCode;
+  results: Partial<Record<LanguageCode, string>>;
+  engineLabel: string;
+  createdAt: number;
+}
+
+interface LocalResourceFile {
+  name: string;
+  category: string;
+  sizeBytes: number;
+  compatibility: string;
+}
+
+interface LocalResourceReport {
+  detected: boolean;
+  basePath: string | null;
+  dictionaryFiles: LocalResourceFile[];
+  modelFiles: LocalResourceFile[];
+  totalSizeBytes: number;
+  notice: string;
 }
 
 interface CardElements {
@@ -82,6 +124,32 @@ const PART_OF_SPEECH_LABELS: Record<string, string> = {
   "auxiliary verb": "助动",
 };
 
+const AI_PROVIDER_PRESETS: Record<
+  Exclude<AiProvider, "custom">,
+  { endpoint: string; model: string; hint: string }
+> = {
+  deepseek: {
+    endpoint: "https://api.deepseek.com",
+    model: "deepseek-flash",
+    hint: "低成本、OpenAI 兼容；密钥只保存在 Windows 凭据管理器。",
+  },
+  qwen: {
+    endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    model: "qwen-flash",
+    hint: "国内网络更友好，适合高频短文本翻译。",
+  },
+  openrouter: {
+    endpoint: "https://openrouter.ai/api/v1",
+    model: "openrouter/auto",
+    hint: "一个密钥可切换多家模型；最终价格由选中的模型决定。",
+  },
+  openai: {
+    endpoint: "https://api.openai.com/v1",
+    model: "gpt-4.1-mini",
+    hint: "使用 OpenAI 官方兼容接口；实际可用模型以你的账户为准。",
+  },
+};
+
 const IS_TAURI = "__TAURI_INTERNALS__" in window;
 
 function requiredElement<T extends HTMLElement>(id: string): T {
@@ -96,6 +164,12 @@ const root = document.documentElement;
 const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
 const titlebar = requiredElement<HTMLElement>("titlebar");
 const workspace = requiredElement<HTMLElement>("workspace");
+const workspaceNavButtons = Array.from(
+  document.querySelectorAll<HTMLButtonElement>("[data-workspace-view]"),
+);
+const workspacePages = Array.from(
+  document.querySelectorAll<HTMLElement>("[data-workspace-page]"),
+);
 const sourceText = requiredElement<HTMLTextAreaElement>("sourceText");
 const sourceLanguage = requiredElement<HTMLSelectElement>("sourceLanguage");
 const characterCount = requiredElement<HTMLElement>("characterCount");
@@ -124,6 +198,11 @@ const statusText = requiredElement<HTMLElement>("statusText");
 const resultsPanel = requiredElement<HTMLElement>("resultsPanel");
 const wordUsage = requiredElement<HTMLElement>("wordUsage");
 const usageList = requiredElement<HTMLUListElement>("usageList");
+const localMatches = requiredElement<HTMLElement>("localMatches");
+const localMatchesList = requiredElement<HTMLElement>("localMatchesList");
+const speakButton = requiredElement<HTMLButtonElement>("speakButton");
+const favoriteButton = requiredElement<HTMLButtonElement>("favoriteButton");
+const copyAllButton = requiredElement<HTMLButtonElement>("copyAllButton");
 const toast = requiredElement<HTMLElement>("toast");
 const translationMode = requiredElement<HTMLSelectElement>("translationMode");
 const modeDescription = requiredElement<HTMLElement>("modeDescription");
@@ -144,8 +223,11 @@ const onlineEngineBlock = requiredElement<HTMLElement>("onlineEngineBlock");
 const onlineEngine = requiredElement<HTMLSelectElement>("onlineEngine");
 const onlineDescription = requiredElement<HTMLElement>("onlineDescription");
 const aiFields = requiredElement<HTMLElement>("aiFields");
+const aiProvider = requiredElement<HTMLSelectElement>("aiProvider");
+const aiStyle = requiredElement<HTMLSelectElement>("aiStyle");
 const aiEndpoint = requiredElement<HTMLInputElement>("aiEndpoint");
 const aiModel = requiredElement<HTMLInputElement>("aiModel");
+const aiProviderHint = requiredElement<HTMLElement>("aiProviderHint");
 const aiApiKey = requiredElement<HTMLInputElement>("aiApiKey");
 const apiKeyStatus = requiredElement<HTMLElement>("apiKeyStatus");
 const saveApiKeyButton = requiredElement<HTMLButtonElement>("saveApiKeyButton");
@@ -156,6 +238,28 @@ const translationKey = requiredElement<HTMLSelectElement>("translationKey");
 const enterBehaviorDescription = requiredElement<HTMLElement>("enterBehaviorDescription");
 const translationKeyHint = requiredElement<HTMLElement>("translationKeyHint");
 const activeModeChip = requiredElement<HTMLElement>("activeModeChip");
+const clipboardOnOpenToggle = requiredElement<HTMLInputElement>("clipboardOnOpenToggle");
+const historyToggle = requiredElement<HTMLInputElement>("historyToggle");
+const dictionaryStatsElement = requiredElement<HTMLElement>("dictionaryStats");
+const detectYoudaoButton = requiredElement<HTMLButtonElement>("detectYoudaoButton");
+const importDictionaryButton = requiredElement<HTMLButtonElement>("importDictionaryButton");
+const dictionaryFileInput = requiredElement<HTMLInputElement>("dictionaryFileInput");
+const dictionarySearch = requiredElement<HTMLInputElement>("dictionarySearch");
+const dictionaryNotice = requiredElement<HTMLElement>("dictionaryNotice");
+const dictionaryResults = requiredElement<HTMLElement>("dictionaryResults");
+const youdaoResourcePanel = requiredElement<HTMLElement>("youdaoResourcePanel");
+const youdaoResourceSummary = requiredElement<HTMLElement>("youdaoResourceSummary");
+const youdaoResourceNotice = requiredElement<HTMLElement>("youdaoResourceNotice");
+const youdaoResourceFiles = requiredElement<HTMLElement>("youdaoResourceFiles");
+const clearDictionariesButton = requiredElement<HTMLButtonElement>("clearDictionariesButton");
+const wordbookCount = requiredElement<HTMLElement>("wordbookCount");
+const exportWordbookButton = requiredElement<HTMLButtonElement>("exportWordbookButton");
+const wordbookSearch = requiredElement<HTMLInputElement>("wordbookSearch");
+const wordbookList = requiredElement<HTMLElement>("wordbookList");
+const historyCount = requiredElement<HTMLElement>("historyCount");
+const clearHistoryButton = requiredElement<HTMLButtonElement>("clearHistoryButton");
+const historySearch = requiredElement<HTMLInputElement>("historySearch");
+const historyList = requiredElement<HTMLElement>("historyList");
 const settingsTabs = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-settings-tab]"));
 const settingsPages = Array.from(document.querySelectorAll<HTMLElement>("[data-settings-page]"));
 const offlineFieldGroups = Array.from(
@@ -173,11 +277,13 @@ document.querySelectorAll<HTMLElement>(".result-card").forEach((card) => {
 });
 
 let debounceTimer: number | undefined;
+let dictionarySearchTimer: number | undefined;
 let toastTimer: number | undefined;
 let fitTimer: number | undefined;
 let requestSequence = 0;
 let isComposing = false;
 let settingsOpen = false;
+let activeWorkspaceView: WorkspaceView = "translate";
 let recordingShortcut = false;
 let isPinned = localStorage.getItem("linguadock.pinned") !== "false";
 let activeShortcut = "Ctrl+Alt+G";
@@ -194,6 +300,30 @@ let activeTheme: Theme =
 let resultComplexity = { longestText: 0, senseCount: 0 };
 let lastRequestedSize: { width: number; height: number } | null = null;
 const currentResults = new Map<LanguageCode, string>();
+let lastTranslation: SavedTranslation | null = null;
+let clipboardOnOpenEnabled = localStorage.getItem("linguadock.clipboardOnOpen") === "true";
+let historyEnabled = localStorage.getItem("linguadock.historyEnabled") !== "false";
+
+function loadSavedTranslations(key: string): SavedTranslation[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) ?? "[]") as unknown;
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter(
+        (entry): entry is SavedTranslation =>
+          Boolean(entry) &&
+          typeof entry === "object" &&
+          typeof (entry as SavedTranslation).id === "string" &&
+          typeof (entry as SavedTranslation).sourceText === "string",
+      )
+      .slice(0, 200);
+  } catch {
+    return [];
+  }
+}
+
+let wordbookEntries = loadSavedTranslations("linguadock.wordbook");
+let historyEntries = loadSavedTranslations("linguadock.history").slice(0, 80);
 
 const DEFAULT_TRANSLATION_SETTINGS: TranslationSettings = {
   mode: "smart",
@@ -206,8 +336,10 @@ const DEFAULT_TRANSLATION_SETTINGS: TranslationSettings = {
   ollamaModel: "qwen2.5:3b",
   lmStudioEndpoint: "http://127.0.0.1:1234/v1",
   lmStudioModel: "local-model",
-  aiEndpoint: "https://api.openai.com/v1",
-  aiModel: "",
+  aiEndpoint: "https://api.deepseek.com",
+  aiModel: "deepseek-flash",
+  aiProvider: "deepseek",
+  aiStyle: "natural",
   translationKey: "enter",
 };
 
@@ -217,11 +349,27 @@ function loadTranslationSettings(): TranslationSettings {
       localStorage.getItem("linguadock.translationSettings") ?? "{}",
     ) as Partial<TranslationSettings>;
     const merged = { ...DEFAULT_TRANSLATION_SETTINGS, ...stored };
+    if (!stored.aiProvider && (stored.aiEndpoint || stored.aiModel !== undefined)) {
+      merged.aiProvider = "custom";
+    }
+    if (
+      merged.aiProvider === "deepseek" &&
+      merged.aiEndpoint === "https://api.openai.com/v1" &&
+      merged.aiModel === "deepseek-flash"
+    ) {
+      merged.aiEndpoint = AI_PROVIDER_PRESETS.deepseek.endpoint;
+    }
     if (!["smart", "offline", "online"].includes(merged.mode)) merged.mode = "smart";
     if (!["builtin", "libretranslate", "ollama", "lmstudio"].includes(merged.offlineEngine)) {
       merged.offlineEngine = "builtin";
     }
     if (!["google", "ai"].includes(merged.onlineEngine)) merged.onlineEngine = "google";
+    if (!["deepseek", "qwen", "openrouter", "openai", "custom"].includes(merged.aiProvider)) {
+      merged.aiProvider = "custom";
+    }
+    if (!["natural", "literal", "concise", "professional"].includes(merged.aiStyle)) {
+      merged.aiStyle = "natural";
+    }
     if (!["enter", "ctrl-enter"].includes(merged.translationKey)) merged.translationKey = "enter";
     merged.smartThreshold = Math.max(
       1,
@@ -258,6 +406,298 @@ function showToast(message: string): void {
   }, 1600);
 }
 
+function persistSavedTranslations(): void {
+  localStorage.setItem("linguadock.wordbook", JSON.stringify(wordbookEntries));
+  localStorage.setItem("linguadock.history", JSON.stringify(historyEntries));
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+}
+
+function savedResultSummary(entry: SavedTranslation): string {
+  return (
+    entry.results.en ??
+    entry.results["zh-CN"] ??
+    entry.results.ja ??
+    entry.results["zh-TW"] ??
+    ""
+  );
+}
+
+function formatSavedDate(timestamp: number): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function setWorkspaceView(view: WorkspaceView, focus = true): void {
+  activeWorkspaceView = view;
+  workspaceNavButtons.forEach((button) => {
+    const active = button.dataset.workspaceView === view;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-current", active ? "page" : "false");
+  });
+  workspacePages.forEach((page) => {
+    page.hidden = page.dataset.workspacePage !== view;
+  });
+
+  if (view === "dictionary") {
+    void refreshDictionaryStats();
+    void renderDictionarySearch();
+  } else if (view === "wordbook") {
+    renderSavedList("wordbook");
+  } else if (view === "history") {
+    renderSavedList("history");
+  }
+
+  lastRequestedSize = null;
+  queueWindowFit(0);
+  if (!focus) return;
+  window.setTimeout(() => {
+    if (view === "translate") sourceText.focus();
+    if (view === "dictionary") dictionarySearch.focus();
+    if (view === "wordbook") wordbookSearch.focus();
+    if (view === "history") historySearch.focus();
+  }, 40);
+}
+
+function makeLibraryResultElement(entry: ImportedDictionaryEntry): HTMLElement {
+  const item = document.createElement("article");
+  item.className = "library-result-item";
+  const term = document.createElement("strong");
+  term.textContent = entry.term;
+  const definition = document.createElement("p");
+  definition.textContent = entry.definition;
+  const source = document.createElement("small");
+  source.textContent = entry.source;
+  item.append(term, definition, source);
+  return item;
+}
+
+function renderLibraryResults(
+  container: HTMLElement,
+  entries: ImportedDictionaryEntry[],
+  emptyMessage: string,
+): void {
+  container.replaceChildren();
+  container.classList.toggle("empty-state", entries.length === 0);
+  if (entries.length === 0) {
+    container.textContent = emptyMessage;
+    return;
+  }
+  entries.forEach((entry) => container.append(makeLibraryResultElement(entry)));
+}
+
+async function refreshDictionaryStats(): Promise<void> {
+  try {
+    const stats = await dictionaryStats();
+    dictionaryStatsElement.textContent =
+      stats.entries > 0
+        ? `${stats.entries.toLocaleString()} 个词条 · ${stats.sources} 个来源`
+        : "尚未导入词条";
+    clearDictionariesButton.disabled = stats.entries === 0;
+  } catch (error) {
+    dictionaryStatsElement.textContent = "无法读取本地词库";
+    console.warn("Unable to read dictionary stats", error);
+  }
+}
+
+async function renderDictionarySearch(): Promise<void> {
+  const query = dictionarySearch.value.trim();
+  if (!query) {
+    const stats = await dictionaryStats().catch(() => ({ entries: 0, sources: 0 }));
+    renderLibraryResults(
+      dictionaryResults,
+      [],
+      stats.entries > 0 ? "输入单词或短语开始搜索" : "导入词库后即可离线检索",
+    );
+    return;
+  }
+  try {
+    const entries = await searchDictionary(query);
+    renderLibraryResults(dictionaryResults, entries, `没有找到“${query}”`);
+  } catch (error) {
+    renderLibraryResults(dictionaryResults, [], normalizeError(error));
+  }
+  queueWindowFit();
+}
+
+function restoreSavedTranslation(entry: SavedTranslation): void {
+  setSettingsOpen(false);
+  setWorkspaceView("translate", false);
+  sourceText.value = entry.sourceText;
+  sourceLanguage.value = entry.sourceLanguage;
+  updateComposerState();
+  window.clearTimeout(debounceTimer);
+  requestSequence += 1;
+  currentResults.clear();
+  resultsPanel.hidden = false;
+  wordUsage.hidden = true;
+  usageList.replaceChildren();
+  localMatches.hidden = true;
+  localMatchesList.replaceChildren();
+
+  let longestText = 0;
+  cards.forEach(({ card, output, senses }, language) => {
+    const value = entry.results[language];
+    card.classList.remove("is-loading", "is-error", "is-copied", "is-disabled");
+    card.classList.toggle("is-source", language === entry.detectedLanguage);
+    senses.hidden = true;
+    senses.replaceChildren();
+    if (value) {
+      output.textContent = value;
+      currentResults.set(language, value);
+      card.setAttribute("aria-disabled", "false");
+      longestText = Math.max(longestText, Array.from(value).length);
+    } else {
+      output.textContent = "这条本地记录没有该语言结果";
+      card.classList.add("is-disabled");
+      card.setAttribute("aria-disabled", "true");
+    }
+  });
+
+  lastTranslation = entry;
+  resultComplexity = { longestText, senseCount: 0 };
+  setStatus(
+    "ready",
+    `${LANGUAGE_LABELS[entry.detectedLanguage]} · ${entry.engineLabel} · 本地记录`,
+  );
+  updateFavoriteState();
+  if (!/\s/.test(entry.sourceText.trim())) void renderLocalMatches(entry.sourceText);
+  queueWindowFit();
+  window.setTimeout(() => sourceText.focus(), 40);
+}
+
+function renderSavedList(kind: "wordbook" | "history"): void {
+  const isWordbook = kind === "wordbook";
+  const entries = isWordbook ? wordbookEntries : historyEntries;
+  const query = (isWordbook ? wordbookSearch.value : historySearch.value).trim().toLocaleLowerCase();
+  const filtered = query
+    ? entries.filter((entry) =>
+        `${entry.sourceText}\n${Object.values(entry.results).join("\n")}`
+          .toLocaleLowerCase()
+          .includes(query),
+      )
+    : entries;
+  const container = isWordbook ? wordbookList : historyList;
+  container.replaceChildren();
+  container.classList.toggle("empty-state", filtered.length === 0);
+  if (filtered.length === 0) {
+    container.textContent = query
+      ? "没有匹配的记录"
+      : isWordbook
+        ? "在翻译结果上点击“收藏”"
+        : historyEnabled
+          ? "完成翻译后会显示在这里"
+          : "本地历史已关闭";
+  } else {
+    filtered.forEach((entry) => {
+      const item = document.createElement("article");
+      item.className = "saved-item";
+      item.tabIndex = 0;
+      item.setAttribute("role", "button");
+
+      const copy = document.createElement("div");
+      copy.className = "saved-item-copy";
+      const source = document.createElement("strong");
+      source.textContent = entry.sourceText;
+      const result = document.createElement("span");
+      result.textContent = savedResultSummary(entry);
+      const meta = document.createElement("small");
+      meta.textContent = `${entry.engineLabel} · ${formatSavedDate(entry.createdAt)}`;
+      copy.append(source, result, meta);
+
+      const actions = document.createElement("div");
+      actions.className = "saved-item-actions";
+      const remove = document.createElement("button");
+      remove.className = "saved-delete";
+      remove.type = "button";
+      remove.title = "删除";
+      remove.ariaLabel = "删除这条记录";
+      remove.textContent = "×";
+      remove.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (isWordbook) {
+          wordbookEntries = wordbookEntries.filter((candidate) => candidate.id !== entry.id);
+        } else {
+          historyEntries = historyEntries.filter((candidate) => candidate.id !== entry.id);
+        }
+        persistSavedTranslations();
+        renderSavedList(kind);
+        updateFavoriteState();
+      });
+      actions.append(remove);
+      item.append(copy, actions);
+      item.addEventListener("click", () => restoreSavedTranslation(entry));
+      item.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          restoreSavedTranslation(entry);
+        }
+      });
+      container.append(item);
+    });
+  }
+
+  wordbookCount.textContent = `${wordbookEntries.length} 条`;
+  historyCount.textContent = `${historyEntries.length} 条 · 仅保存在本机`;
+  exportWordbookButton.disabled = wordbookEntries.length === 0;
+  clearHistoryButton.disabled = historyEntries.length === 0;
+  queueWindowFit();
+}
+
+function translationIdentity(source: string, results: Partial<Record<LanguageCode, string>>): string {
+  return `${source.trim()}\u0000${Object.entries(results)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([language, text]) => `${language}:${text}`)
+    .join("\u0000")}`;
+}
+
+function updateFavoriteState(): void {
+  const favorite = Boolean(
+    lastTranslation && wordbookEntries.some((entry) => entry.id === lastTranslation?.id),
+  );
+  favoriteButton.classList.toggle("is-active", favorite);
+  favoriteButton.title = favorite ? "取消收藏" : "收藏本次翻译";
+}
+
+function saveHistory(entry: SavedTranslation): void {
+  if (!historyEnabled) return;
+  historyEntries = [entry, ...historyEntries.filter((candidate) => candidate.id !== entry.id)].slice(
+    0,
+    80,
+  );
+  persistSavedTranslations();
+  renderSavedList("history");
+}
+
+async function renderLocalMatches(term: string): Promise<void> {
+  const requestTerm = term.trim();
+  if (!requestTerm || /\s/.test(requestTerm)) {
+    localMatches.hidden = true;
+    localMatchesList.replaceChildren();
+    return;
+  }
+  try {
+    const entries = await lookupDictionary(requestTerm);
+    if (sourceText.value.trim() !== requestTerm) return;
+    renderLibraryResults(localMatchesList, entries, "");
+    localMatches.hidden = entries.length === 0;
+    queueWindowFit();
+  } catch (error) {
+    console.warn("Unable to lookup imported dictionary", error);
+  }
+}
+
 function persistTranslationSettings(): void {
   localStorage.setItem(
     "linguadock.translationSettings",
@@ -279,6 +719,8 @@ function translationOptions(): Omit<TranslationSettings, "translationKey"> {
     lmStudioModel: translationSettings.lmStudioModel,
     aiEndpoint: translationSettings.aiEndpoint,
     aiModel: translationSettings.aiModel,
+    aiProvider: translationSettings.aiProvider,
+    aiStyle: translationSettings.aiStyle,
   };
 }
 
@@ -297,6 +739,8 @@ function readTranslationSettingsFromForm(): void {
     lmStudioModel: lmStudioModel.value.trim(),
     aiEndpoint: aiEndpoint.value.trim() || DEFAULT_TRANSLATION_SETTINGS.aiEndpoint,
     aiModel: aiModel.value.trim(),
+    aiProvider: aiProvider.value as AiProvider,
+    aiStyle: aiStyle.value as AiStyle,
     translationKey: translationKey.value as TranslationKey,
   };
   persistTranslationSettings();
@@ -336,6 +780,8 @@ function renderTranslationSettings(): void {
   ollamaModel.value = translationSettings.ollamaModel;
   lmStudioEndpoint.value = translationSettings.lmStudioEndpoint;
   lmStudioModel.value = translationSettings.lmStudioModel;
+  aiProvider.value = translationSettings.aiProvider;
+  aiStyle.value = translationSettings.aiStyle;
   aiEndpoint.value = translationSettings.aiEndpoint;
   aiModel.value = translationSettings.aiModel;
   translationKey.value = translationSettings.translationKey;
@@ -366,7 +812,12 @@ function renderTranslationSettings(): void {
   onlineDescription.textContent =
     translationSettings.onlineEngine === "google"
       ? "Google 翻译，无需密钥"
-      : "OpenAI 兼容接口，支持自定义地址与模型";
+      : `${aiProvider.options[aiProvider.selectedIndex]?.text ?? "AI API"} · OpenAI 兼容`;
+
+  aiProviderHint.textContent =
+    translationSettings.aiProvider === "custom"
+      ? "可接入任何 OpenAI Chat Completions 兼容服务。"
+      : AI_PROVIDER_PRESETS[translationSettings.aiProvider].hint;
 
   const enterTranslates = translationSettings.translationKey === "enter";
   enterBehaviorDescription.textContent = enterTranslates
@@ -406,7 +857,9 @@ async function refreshApiKeyState(): Promise<void> {
     return;
   }
   try {
-    const saved = await invoke<boolean>("has_ai_api_key");
+    const saved = await invoke<boolean>("has_ai_api_key", {
+      providerId: translationSettings.aiProvider,
+    });
     apiKeyStatus.textContent = saved ? "已安全保存" : "尚未保存";
     deleteApiKeyButton.disabled = !saved;
   } catch (error) {
@@ -458,6 +911,7 @@ function visibleWorkspaceHeight(): number {
 
 function desiredWindowWidth(): number {
   if (settingsOpen) return 680;
+  if (activeWorkspaceView !== "translate") return 720;
   if (resultsPanel.hidden) {
     return sourceText.value.length > 240 ? 620 : 560;
   }
@@ -532,11 +986,11 @@ function setSettingsOpen(open: boolean): void {
   workspace.classList.toggle("is-settings-open", open);
   settingsButton.classList.toggle("is-active", open);
   settingsButton.setAttribute("aria-expanded", String(open));
-  settingsButton.title = open ? "返回翻译" : "设置";
+  settingsButton.title = open ? "返回" : "设置";
   settingsButton.ariaLabel = settingsButton.title;
   if (!open) {
     stopShortcutRecording();
-    window.setTimeout(() => sourceText.focus(), 40);
+    setWorkspaceView(activeWorkspaceView);
   } else {
     void refreshAutostartState();
     void refreshApiKeyState();
@@ -755,11 +1209,15 @@ async function initializeVersion(): Promise<void> {
 
 function resetCards(): void {
   currentResults.clear();
+  lastTranslation = null;
   resultComplexity = { longestText: 0, senseCount: 0 };
   resultsPanel.hidden = true;
   statusRow.hidden = true;
   wordUsage.hidden = true;
   usageList.replaceChildren();
+  localMatches.hidden = true;
+  localMatchesList.replaceChildren();
+  updateFavoriteState();
   setModeChip();
 
   cards.forEach(({ card, output, senses }) => {
@@ -775,10 +1233,14 @@ function resetCards(): void {
 
 function setCardsLoading(): void {
   currentResults.clear();
+  lastTranslation = null;
   resultComplexity = { longestText: 0, senseCount: 0 };
   resultsPanel.hidden = false;
   wordUsage.hidden = true;
   usageList.replaceChildren();
+  localMatches.hidden = true;
+  localMatchesList.replaceChildren();
+  updateFavoriteState();
 
   cards.forEach(({ card, output, senses }) => {
     card.classList.remove("is-source", "is-error", "is-copied");
@@ -839,6 +1301,7 @@ function renderResponse(response: TranslationResponse): void {
   let failedCount = 0;
   let longestText = 0;
   let senseCount = 0;
+  const savedResults: Partial<Record<LanguageCode, string>> = {};
 
   response.items.forEach((item) => {
     const elements = cards.get(item.language);
@@ -853,6 +1316,7 @@ function renderResponse(response: TranslationResponse): void {
       output.textContent = item.text;
       renderSenses(senses, item.senses);
       currentResults.set(item.language, clipboardText(item));
+      savedResults[item.language] = item.text;
       longestText = Math.max(longestText, Array.from(item.text).length);
       senseCount += item.senses.reduce(
         (count, sense) => count + sense.meanings.length,
@@ -883,11 +1347,33 @@ function renderResponse(response: TranslationResponse): void {
 
   const detected = LANGUAGE_LABELS[response.detectedLanguage];
   setModeChip(response.route);
+  const modelSuffix = response.providerModel ? ` · ${response.providerModel}` : "";
+  const tokenTotal = (response.promptTokens ?? 0) + (response.completionTokens ?? 0);
+  const tokenSuffix = tokenTotal > 0 ? ` · ${tokenTotal.toLocaleString()} tokens` : "";
   if (failedCount === 0) {
-    setStatus("ready", `${detected} · ${response.engineLabel} · 已完成`);
+    setStatus("ready", `${detected} · ${response.engineLabel}${modelSuffix}${tokenSuffix} · 已完成`);
   } else {
-    setStatus("error", `${detected} · ${response.engineLabel} · ${failedCount} 项失败`);
+    setStatus(
+      "error",
+      `${detected} · ${response.engineLabel}${modelSuffix}${tokenSuffix} · ${failedCount} 项失败`,
+    );
   }
+
+  const source = sourceText.value.trim();
+  lastTranslation = {
+    id: translationIdentity(source, savedResults),
+    sourceText: source,
+    sourceLanguage: sourceLanguage.value as SourceChoice,
+    detectedLanguage: response.detectedLanguage,
+    results: savedResults,
+    engineLabel: response.providerModel
+      ? `${response.engineLabel} · ${response.providerModel}`
+      : response.engineLabel,
+    createdAt: Date.now(),
+  };
+  if (failedCount < response.items.length) saveHistory(lastTranslation);
+  updateFavoriteState();
+  if (response.isSingleWord) void renderLocalMatches(source);
   queueWindowFit();
 }
 
@@ -1002,6 +1488,90 @@ async function copyResult(language: LanguageCode): Promise<void> {
   }
 }
 
+async function copyAllResults(): Promise<void> {
+  const content = (["zh-CN", "en", "ja", "zh-TW"] as LanguageCode[])
+    .map((language) => {
+      const value = currentResults.get(language);
+      return value ? `${LANGUAGE_LABELS[language]}\n${value}` : "";
+    })
+    .filter(Boolean)
+    .join("\n\n");
+  if (!content) return;
+  try {
+    if (IS_TAURI) await writeText(content);
+    else await navigator.clipboard.writeText(content);
+    showToast("四语结果已全部复制");
+  } catch (error) {
+    showToast(`复制失败：${normalizeError(error)}`);
+  }
+}
+
+function toggleFavorite(): void {
+  if (!lastTranslation) return;
+  const exists = wordbookEntries.some((entry) => entry.id === lastTranslation?.id);
+  if (exists) {
+    wordbookEntries = wordbookEntries.filter((entry) => entry.id !== lastTranslation?.id);
+    showToast("已取消收藏");
+  } else {
+    wordbookEntries = [lastTranslation, ...wordbookEntries].slice(0, 500);
+    showToast("已加入收藏");
+  }
+  persistSavedTranslations();
+  renderSavedList("wordbook");
+  updateFavoriteState();
+}
+
+function speakSource(): void {
+  const text = sourceText.value.trim();
+  if (!text) return;
+  if (!("speechSynthesis" in window)) {
+    showToast("当前系统不支持语音朗读");
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  const language = lastTranslation?.detectedLanguage ?? sourceLanguage.value;
+  utterance.lang =
+    language === "zh-TW"
+      ? "zh-TW"
+      : language === "zh-CN"
+        ? "zh-CN"
+        : language === "ja"
+          ? "ja-JP"
+          : "en-US";
+  window.speechSynthesis.speak(utterance);
+}
+
+function exportWordbook(): void {
+  if (wordbookEntries.length === 0) return;
+  const blob = new Blob([JSON.stringify(wordbookEntries, null, 2)], {
+    type: "application/json;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `LinguaDock-wordbook-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast("收藏已导出");
+}
+
+async function readClipboardOnOpen(): Promise<void> {
+  if (!clipboardOnOpenEnabled || !IS_TAURI) return;
+  try {
+    const value = (await readText()).trim();
+    if (!value || value.length > 5000 || value === sourceText.value.trim()) return;
+    sourceText.value = value;
+    sourceLanguage.value = "auto";
+    updateComposerState();
+    await translateNow();
+  } catch (error) {
+    console.warn("Unable to read clipboard on open", error);
+  }
+}
+
 sourceText.addEventListener("compositionstart", () => {
   isComposing = true;
   requestSequence += 1;
@@ -1071,8 +1641,146 @@ settingsTabs.forEach((button) => {
   });
 });
 
-[translationMode, offlineEngine, onlineEngine, translationKey].forEach((select) => {
-  select.addEventListener("change", () => applyTranslationSettingsChange());
+workspaceNavButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    setSettingsOpen(false);
+    setWorkspaceView((button.dataset.workspaceView ?? "translate") as WorkspaceView);
+  });
+});
+
+speakButton.addEventListener("click", speakSource);
+favoriteButton.addEventListener("click", toggleFavorite);
+copyAllButton.addEventListener("click", () => void copyAllResults());
+
+clipboardOnOpenToggle.addEventListener("change", () => {
+  clipboardOnOpenEnabled = clipboardOnOpenToggle.checked;
+  localStorage.setItem("linguadock.clipboardOnOpen", String(clipboardOnOpenEnabled));
+  showToast(clipboardOnOpenEnabled ? "已开启剪贴板快速翻译" : "已关闭剪贴板快速翻译");
+});
+
+historyToggle.addEventListener("change", () => {
+  historyEnabled = historyToggle.checked;
+  localStorage.setItem("linguadock.historyEnabled", String(historyEnabled));
+  renderSavedList("history");
+  showToast(historyEnabled ? "已开启本地历史" : "已停止记录新历史");
+});
+
+importDictionaryButton.addEventListener("click", () => dictionaryFileInput.click());
+
+dictionaryFileInput.addEventListener("change", () => {
+  const files = dictionaryFileInput.files;
+  if (!files || files.length === 0) return;
+  importDictionaryButton.disabled = true;
+  importDictionaryButton.textContent = "导入中…";
+  dictionaryNotice.textContent = "正在解析并写入本地词库…";
+  void importDictionaryFiles(files)
+    .then(async (result) => {
+      await refreshDictionaryStats();
+      await renderDictionarySearch();
+      const warning = result.warnings.slice(0, 2).join("；");
+      dictionaryNotice.textContent =
+        result.count > 0
+          ? `已导入 ${result.count.toLocaleString()} 个词条${warning ? `；${warning}` : ""}`
+          : warning || "没有找到可导入词条";
+      showToast(
+        result.count > 0 ? `已导入 ${result.count.toLocaleString()} 个词条` : "没有导入词条",
+      );
+    })
+    .catch((error) => {
+      dictionaryNotice.textContent = normalizeError(error);
+      showToast(`导入失败：${normalizeError(error)}`);
+    })
+    .finally(() => {
+      dictionaryFileInput.value = "";
+      importDictionaryButton.disabled = false;
+      importDictionaryButton.textContent = "导入词库";
+      queueWindowFit();
+    });
+});
+
+dictionarySearch.addEventListener("input", () => {
+  window.clearTimeout(dictionarySearchTimer);
+  dictionarySearchTimer = window.setTimeout(() => void renderDictionarySearch(), 160);
+});
+
+detectYoudaoButton.addEventListener("click", () => {
+  if (!IS_TAURI) {
+    showToast("请在桌面应用中检测本地资源");
+    return;
+  }
+  detectYoudaoButton.disabled = true;
+  detectYoudaoButton.textContent = "检测中…";
+  void invoke<LocalResourceReport>("scan_local_dictionary_resources")
+    .then((report) => {
+      youdaoResourcePanel.hidden = false;
+      youdaoResourceNotice.textContent = report.notice;
+      youdaoResourceSummary.textContent = report.detected
+        ? `${report.dictionaryFiles.length} 个词典文件 · ${report.modelFiles.length} 个模型文件 · ${formatBytes(report.totalSizeBytes)}`
+        : "未发现默认目录资源";
+      youdaoResourceFiles.replaceChildren();
+      [...report.dictionaryFiles, ...report.modelFiles].slice(0, 40).forEach((file) => {
+        const item = document.createElement("span");
+        item.className = "resource-file";
+        item.title = file.compatibility;
+        item.textContent = `${file.name} · ${formatBytes(file.sizeBytes)}`;
+        youdaoResourceFiles.append(item);
+      });
+      dictionaryNotice.textContent = report.detected
+        ? `已识别：${report.basePath ?? "有道用户目录"}`
+        : "未在默认用户目录发现有道离线资源";
+      showToast(report.detected ? "已识别本机有道资源" : "未发现有道本地资源");
+    })
+    .catch((error) => showToast(`检测失败：${normalizeError(error)}`))
+    .finally(() => {
+      detectYoudaoButton.disabled = false;
+      detectYoudaoButton.textContent = "检测有道资源";
+      queueWindowFit();
+    });
+});
+
+clearDictionariesButton.addEventListener("click", () => {
+  if (!window.confirm("确定清空译栈中所有已导入的本地词条吗？")) return;
+  clearDictionariesButton.disabled = true;
+  void clearImportedDictionaries()
+    .then(async () => {
+      await refreshDictionaryStats();
+      await renderDictionarySearch();
+      dictionaryNotice.textContent = "已清空导入词库；有道原始文件没有被修改。";
+      showToast("已清空导入词库");
+    })
+    .catch((error) => showToast(`清空失败：${normalizeError(error)}`))
+    .finally(() => {
+      clearDictionariesButton.disabled = false;
+    });
+});
+
+wordbookSearch.addEventListener("input", () => renderSavedList("wordbook"));
+historySearch.addEventListener("input", () => renderSavedList("history"));
+exportWordbookButton.addEventListener("click", exportWordbook);
+clearHistoryButton.addEventListener("click", () => {
+  if (!window.confirm("确定清空全部本地翻译历史吗？")) return;
+  historyEntries = [];
+  persistSavedTranslations();
+  renderSavedList("history");
+  showToast("历史已清空");
+});
+
+[translationMode, offlineEngine, onlineEngine, translationKey, aiStyle].forEach((select) => {
+  select.addEventListener("change", () => {
+    applyTranslationSettingsChange();
+    if (select === onlineEngine && onlineEngine.value === "ai") void refreshApiKeyState();
+  });
+});
+
+aiProvider.addEventListener("change", () => {
+  const provider = aiProvider.value as AiProvider;
+  if (provider !== "custom") {
+    aiEndpoint.value = AI_PROVIDER_PRESETS[provider].endpoint;
+    aiModel.value = AI_PROVIDER_PRESETS[provider].model;
+  }
+  aiApiKey.value = "";
+  applyTranslationSettingsChange();
+  void refreshApiKeyState();
 });
 
 smartFallbackToggle.addEventListener("change", () => applyTranslationSettingsChange());
@@ -1112,7 +1820,10 @@ saveApiKeyButton.addEventListener("click", () => {
     return;
   }
   saveApiKeyButton.disabled = true;
-  void invoke("save_ai_api_key", { apiKey })
+  void invoke("save_ai_api_key", {
+    providerId: translationSettings.aiProvider,
+    apiKey,
+  })
     .then(async () => {
       aiApiKey.value = "";
       await refreshApiKeyState();
@@ -1127,7 +1838,7 @@ saveApiKeyButton.addEventListener("click", () => {
 deleteApiKeyButton.addEventListener("click", () => {
   if (!IS_TAURI) return;
   deleteApiKeyButton.disabled = true;
-  void invoke("delete_ai_api_key")
+  void invoke("delete_ai_api_key", { providerId: translationSettings.aiProvider })
     .then(async () => {
       aiApiKey.value = "";
       await refreshApiKeyState();
@@ -1284,6 +1995,8 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     if (settingsOpen) {
       setSettingsOpen(false);
+    } else if (activeWorkspaceView !== "translate") {
+      setWorkspaceView("translate");
     } else {
       void hideWindow();
     }
@@ -1310,6 +2023,8 @@ window.addEventListener("offline", () => {
 if (IS_TAURI) {
   void listen("focus-input", () => {
     if (settingsOpen) setSettingsOpen(false);
+    setWorkspaceView("translate", false);
+    void readClipboardOnOpen();
     window.setTimeout(() => {
       sourceText.focus();
       sourceText.setSelectionRange(sourceText.value.length, sourceText.value.length);
@@ -1328,9 +2043,15 @@ if (previewMode && (previewTheme === "light" || previewTheme === "dark")) {
 applyTheme(activeTheme, false);
 renderTranslationSettings();
 setSettingsTab("translation");
+setWorkspaceView("translate", false);
 autoUpdateToggle.checked = autoUpdateEnabled;
+clipboardOnOpenToggle.checked = clipboardOnOpenEnabled;
+historyToggle.checked = historyEnabled;
 updateComposerState();
 resetCards();
+renderSavedList("wordbook");
+renderSavedList("history");
+void refreshDictionaryStats();
 void applyPinnedState(false);
 void initializeVersion();
 void initializeShortcut();
@@ -1340,7 +2061,7 @@ if (previewMode && previewView === "settings") {
   setSettingsOpen(true);
   startupToggle.disabled = false;
   startupToggle.checked = true;
-  updateStatus.textContent = "V1.0.2 已是最新版本";
+  updateStatus.textContent = "V1.0.3 已是最新版本";
 } else if (previewMode) {
   sourceText.value = "bank";
   sourceLanguage.value = "en";

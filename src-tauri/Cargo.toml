@@ -1,6 +1,6 @@
 [package]
 name = "linguadock"
-version = "1.0.2"
+version = "1.0.3"
 description = "A privacy-aware adaptive four-language desktop translation dock"
 authors = ["PascalePaF"]
 edition = "2021"

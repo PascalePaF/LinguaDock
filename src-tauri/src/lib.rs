@@ -1,3 +1,4 @@
+mod local_resources;
 mod translation;
 
 use std::sync::Mutex;
@@ -285,6 +286,7 @@ pub fn run() {
             translation::save_ai_api_key,
             translation::has_ai_api_key,
             translation::delete_ai_api_key,
+            local_resources::scan_local_dictionary_resources,
             set_window_pinned,
             hide_main_window,
             start_window_drag,

@@ -47,10 +47,11 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
-          New-Item -ItemType Directory -Force -Path release, release/portable, release/portable/docs | Out-Null
+          New-Item -ItemType Directory -Force -Path release, release/portable, release/portable/docs, release/portable/examples | Out-Null
           Copy-Item src-tauri/target/release/linguadock.exe release/portable/LinguaDock.exe
           Copy-Item README.md, README_EN.md, CHANGELOG.md, LICENSE, THIRD_PARTY_NOTICES.md release/portable/
-          Copy-Item docs/offline-engines.md, docs/preview.png release/portable/docs/
+          Copy-Item docs/offline-engines.md, docs/dictionary-import.md, docs/ai-providers.md, docs/youdao-experience-study.md, docs/preview.png release/portable/docs/
+          Copy-Item examples/sample-dictionary.csv release/portable/examples/
           Compress-Archive -Path release/portable/* -DestinationPath release/LinguaDock_${version}_windows_x64_portable.zip
           $installer = Get-ChildItem src-tauri/target/release/bundle/nsis -Filter '*-setup.exe' | Select-Object -First 1
           if (-not $installer) { throw 'NSIS installer was not generated.' }
@@ -61,7 +62,7 @@ jobs:
           $releaseInstaller = Get-Item "release/$($installer.Name)"
           $latest = [ordered]@{
             version = $version
-            notes = '新增四种离线引擎、智能分流、AI API、Windows 凭据安全存储、Enter 翻译，以及全局快捷键显示/隐藏切换。'
+            notes = '新增词库、收藏、历史、朗读与剪贴板快译，支持 DeepSeek、千问、OpenRouter、OpenAI 多服务商 AI 接口，并可只读检测本机有道离线资源。'
             pub_date = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
             platforms = [ordered]@{
               'windows-x86_64' = [ordered]@{
@@ -96,13 +97,15 @@ jobs:
           body: |
             ## LinguaDock ${{ github.ref_name }}
 
-            Windows x64 正式版：新增四种离线引擎、可调阈值的智能分流、Google / AI API 在线引擎，以及全新的“译栈 LinguaDock”视觉品牌。
+            Windows x64 正式版：把网易有道式的高频桌面翻译工作流收拢成一个无会员、无广告、无信息流的极简小窗。
 
-            - 内置词典 + OpenCC、LibreTranslate / Argos、Ollama、LM Studio
-            - AI API 密钥保存到 Windows 凭据管理器
-            - 默认 `Enter` 翻译、`Ctrl + Enter` 换行，也可交换
-            - 全局快捷键再次按下会隐藏窗口，后台继续运行
-            - V1.0.1 用户可在应用内直接安装此签名更新
+            - “翻译 / 词库 / 收藏 / 历史”四区工作台，以及朗读和全部复制
+            - CSV、TSV、JSON、XML、TXT、StarDict 和有道个人单词本导入
+            - DeepSeek、通义千问、OpenRouter、OpenAI 与自定义 AI 接口
+            - 每家服务商的密钥独立保存到 Windows 凭据管理器
+            - 可选唤出时读取剪贴板；历史仅在本机保存并可关闭
+            - 只读检测本机有道离线资源，不破解或重新分发专有词典
+            - V1.0.1 及更高版本可在应用内直接安装此签名更新
 
             - 安装版：`LinguaDock_<版本>_x64-setup.exe`
             - 免安装版：`LinguaDock_<版本>_windows_x64_portable.zip`

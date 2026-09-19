@@ -83,7 +83,7 @@
           <header class="settings-header">
             <div>
               <h1 id="settingsTitle">设置</h1>
-              <p>译栈 LinguaDock V<span id="currentVersion">1.0.2</span></p>
+              <p>译栈 LinguaDock V<span id="currentVersion">1.0.3</span></p>
             </div>
             <button id="settingsDoneButton" class="text-button settings-done" type="button">
               完成
@@ -191,14 +191,36 @@
                 <div id="aiFields" class="nested-settings provider-fields" hidden>
                   <div class="field-grid">
                     <label class="field-group">
+                      <span>服务商</span>
+                      <select id="aiProvider" class="field-select">
+                        <option value="deepseek">DeepSeek · 低成本</option>
+                        <option value="qwen">通义千问 · 国内直连</option>
+                        <option value="openrouter">OpenRouter · 多模型</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="custom">自定义兼容接口</option>
+                      </select>
+                    </label>
+                    <label class="field-group">
+                      <span>翻译风格</span>
+                      <select id="aiStyle" class="field-select">
+                        <option value="natural">自然</option>
+                        <option value="literal">忠实直译</option>
+                        <option value="concise">精简</option>
+                        <option value="professional">专业</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="field-grid">
+                    <label class="field-group">
                       <span>OpenAI 兼容地址</span>
-                      <input id="aiEndpoint" type="url" value="https://api.openai.com/v1" spellcheck="false" />
+                      <input id="aiEndpoint" type="url" value="https://api.deepseek.com" spellcheck="false" />
                     </label>
                     <label class="field-group">
                       <span>模型</span>
                       <input id="aiModel" type="text" placeholder="填写模型名称" spellcheck="false" />
                     </label>
                   </div>
+                  <p id="aiProviderHint" class="provider-note"></p>
                   <div class="api-key-row">
                     <label class="field-group api-key-field">
                       <span>API 密钥 <small id="apiKeyStatus">尚未保存</small></span>
@@ -252,6 +274,28 @@
                   <span aria-hidden="true"></span>
                 </span>
               </label>
+
+              <label class="setting-block toggle-setting" for="clipboardOnOpenToggle">
+                <span class="setting-copy">
+                  <strong>唤出时读取剪贴板</strong>
+                  <small>仅在你按快捷键显示窗口时读取，并立即开始翻译</small>
+                </span>
+                <span class="switch-control">
+                  <input id="clipboardOnOpenToggle" type="checkbox" />
+                  <span aria-hidden="true"></span>
+                </span>
+              </label>
+
+              <label class="setting-block toggle-setting" for="historyToggle">
+                <span class="setting-copy">
+                  <strong>保存本地历史</strong>
+                  <small>最多保留 80 条，仅存放在这台电脑上</small>
+                </span>
+                <span class="switch-control">
+                  <input id="historyToggle" type="checkbox" checked />
+                  <span aria-hidden="true"></span>
+                </span>
+              </label>
             </div>
 
             <div class="settings-page" data-settings-page="update" hidden>
@@ -280,6 +324,14 @@
           </div>
         </section>
 
+        <nav id="workspaceNav" class="workspace-nav" aria-label="主要功能">
+          <button class="workspace-nav-button is-active" type="button" data-workspace-view="translate">翻译</button>
+          <button class="workspace-nav-button" type="button" data-workspace-view="dictionary">词库</button>
+          <button class="workspace-nav-button" type="button" data-workspace-view="wordbook">收藏</button>
+          <button class="workspace-nav-button" type="button" data-workspace-view="history">历史</button>
+        </nav>
+
+        <section id="translationView" class="workspace-view translation-view" data-workspace-page="translate">
         <section id="composer" class="composer" aria-labelledby="composerLabel">
           <div class="composer-header">
             <label id="composerLabel" for="sourceText">原文</label>
@@ -327,6 +379,20 @@
         </div>
 
         <section id="resultsPanel" class="results-panel" hidden>
+          <div class="result-actions" aria-label="翻译结果操作">
+            <button id="speakButton" class="action-button" type="button" title="朗读原文">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10v4h3l4 3V7l-4 3H5Z"/><path d="M15 9a4 4 0 0 1 0 6M17.5 6.5a7.5 7.5 0 0 1 0 11"/></svg>
+              朗读
+            </button>
+            <button id="favoriteButton" class="action-button" type="button" title="收藏本次翻译">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3Z"/></svg>
+              收藏
+            </button>
+            <button id="copyAllButton" class="action-button" type="button" title="复制全部译文">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+              全部复制
+            </button>
+          </div>
           <div id="resultsGrid" class="results-grid" aria-label="四语翻译结果">
             <article
               class="result-card language-zh-cn is-disabled"
@@ -429,6 +495,78 @@
             <h2 id="usageTitle">常见用法</h2>
             <ul id="usageList"></ul>
           </section>
+
+          <section id="localMatches" class="word-usage local-matches" aria-labelledby="localMatchesTitle" hidden>
+            <h2 id="localMatchesTitle">本地词库</h2>
+            <div id="localMatchesList" class="library-result-list"></div>
+          </section>
+        </section>
+        </section>
+
+        <section id="dictionaryView" class="workspace-view feature-view" data-workspace-page="dictionary" hidden>
+          <header class="feature-header">
+            <div>
+              <h1>本地词库</h1>
+              <p id="dictionaryStats">尚未导入词条</p>
+            </div>
+            <div class="feature-actions">
+              <button id="detectYoudaoButton" class="secondary-button" type="button">检测有道资源</button>
+              <button id="importDictionaryButton" class="primary-button compact-primary" type="button">导入词库</button>
+              <input id="dictionaryFileInput" type="file" accept=".csv,.tsv,.json,.xml,.txt,.ifo,.idx,.dict,.dat,.db,.npz,.7z" multiple hidden />
+            </div>
+          </header>
+          <label class="search-box" for="dictionarySearch">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
+            <input id="dictionarySearch" type="search" placeholder="搜索导入的单词或短语" autocomplete="off" />
+          </label>
+          <div id="dictionaryNotice" class="feature-notice">
+            支持 CSV、TSV、JSON、XML、TXT 和未压缩 StarDict。也可导入有道导出的个人单词本。
+          </div>
+          <div id="dictionaryResults" class="library-result-list empty-state">导入词库后即可离线检索</div>
+          <section id="youdaoResourcePanel" class="resource-panel" hidden>
+            <div class="resource-heading">
+              <div>
+                <strong>本机有道资源</strong>
+                <small id="youdaoResourceSummary"></small>
+              </div>
+            </div>
+            <p id="youdaoResourceNotice"></p>
+            <div id="youdaoResourceFiles" class="resource-files"></div>
+          </section>
+          <div class="feature-footer">
+            <span>导入内容只保存在本机</span>
+            <button id="clearDictionariesButton" class="text-button danger-text" type="button">清空已导入词库</button>
+          </div>
+        </section>
+
+        <section id="wordbookView" class="workspace-view feature-view" data-workspace-page="wordbook" hidden>
+          <header class="feature-header">
+            <div>
+              <h1>收藏</h1>
+              <p id="wordbookCount">0 条</p>
+            </div>
+            <button id="exportWordbookButton" class="secondary-button" type="button">导出 JSON</button>
+          </header>
+          <label class="search-box" for="wordbookSearch">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
+            <input id="wordbookSearch" type="search" placeholder="搜索收藏" autocomplete="off" />
+          </label>
+          <div id="wordbookList" class="saved-list empty-state">在翻译结果上点击“收藏”</div>
+        </section>
+
+        <section id="historyView" class="workspace-view feature-view" data-workspace-page="history" hidden>
+          <header class="feature-header">
+            <div>
+              <h1>历史</h1>
+              <p id="historyCount">0 条 · 仅保存在本机</p>
+            </div>
+            <button id="clearHistoryButton" class="text-button danger-text" type="button">清空</button>
+          </header>
+          <label class="search-box" for="historySearch">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
+            <input id="historySearch" type="search" placeholder="搜索翻译历史" autocomplete="off" />
+          </label>
+          <div id="historyList" class="saved-list empty-state">完成翻译后会显示在这里</div>
         </section>
       </section>
 

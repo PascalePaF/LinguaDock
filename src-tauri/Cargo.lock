@@ -2495,7 +2495,7 @@ dependencies = [
 
 [[package]]
 name = "linguadock"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "ferrous-opencc",
  "futures",

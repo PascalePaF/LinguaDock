@@ -2,6 +2,28 @@
 
 本项目按 [Semantic Versioning](https://semver.org/) 记录版本变化。
 
+## [1.0.3] - 2026-09-19
+
+### 新增
+
+- “翻译 / 词库 / 收藏 / 历史”四区工作台，以及朗读、全部复制和收藏操作
+- 本地词库导入与搜索，支持 CSV、TSV、JSON、XML、TXT、未压缩 StarDict 和有道导出的个人单词本 XML
+- 单词翻译结果中的本地词库精确匹配
+- 可关闭的本地翻译历史，最多保留 80 条；收藏可导出为 JSON
+- 可选“唤出时读取剪贴板”，用于复制后按全局快捷键立即翻译
+- DeepSeek、通义千问、OpenRouter、OpenAI 和自定义 OpenAI 兼容服务商预设
+- 自然、忠实直译、精简、专业四种 AI 翻译风格
+- AI 响应模型名称、输入 token 和输出 token 状态展示
+- 本机网易有道翻译离线词典与 NMT 模型资源的只读检测报告
+
+### 改进
+
+- 每家 AI 服务商使用独立的 Windows 凭据管理器密钥槽，并兼容读取 V1.0.2 的旧密钥
+- 优化提示词：把待翻译内容视为不可信文本，要求严格 JSON 四语结果并保留术语、数字和格式
+- 导入词库使用 IndexedDB 分批写入，单次最多 150,000 条，避免大词库阻塞界面
+- 明确第三方资源边界：不解析、破解、复制或重新分发有道 `.dat`、`.db`、`.npz`、`.7z` 等专有资源
+- 延续原包标识、更新公钥和版本路线，使旧版本可以直接热更新
+
 ## [1.0.2] - 2026-09-16
 
 ### 新增
@@ -63,6 +85,7 @@
 - 简体中文、英语、日语与繁体中文四语同步翻译
 - 自动语言识别、全局快捷键、窗口置顶、系统托盘与单实例运行
 
+[1.0.3]: https://github.com/PascalePaF/LinguaDock/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/PascalePaF/LinguaDock/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/PascalePaF/LinguaDock/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/PascalePaF/LinguaDock/compare/v0.1.0...v1.0.0
